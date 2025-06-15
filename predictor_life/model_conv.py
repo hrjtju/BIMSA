@@ -29,7 +29,7 @@ class SimpleAutoencoder(nn.Module):
 
     def forward(self, x):
         hidden_a = self.encoder(x)
-        hidden_b = self.transform(hidden_a)
+        hidden_b = self.transform(hidden_a) + hidden_a
         pred = self.decoder(hidden_b)
         r_inputs = self.reconstruct(x)
         
