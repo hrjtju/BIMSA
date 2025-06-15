@@ -52,10 +52,7 @@ def apply_rotation(grid: Tensor) -> Tensor:
         Tensor: Rotated grid.
     """
     
-    angle = np.random.choice([0, 90, 180, 270])  # Randomly choose an angle
-    
-    if angle == 0:
-        return grid
+    angle = np.random.choice([90, 180, 270])  # Randomly choose an angle
     
     # Rotate the grid using PyTorch's tensor operations
     if angle == 90:
@@ -103,32 +100,20 @@ def train_model(model: nn.Module,
             
             # Dynamics Loss
             d_loss = criterion(outputs, labels)
-            d_loss_o = criterion(outputs[:len(inputs_o)], labels_o.to(device))
-            d_loss_t = criterion(outputs[len(inputs_o):len(inputs_o) + len(inputs_t)], labels_t.to(device))
-            d_loss_r = criterion(outputs[len(inputs_o) + len(inputs_t):], labels_r.to(device))
-            
-            wandb.log({"d_loss_o": d_loss_o.item() / 3, 
-                       "d_loss_t": d_loss_t.item() / 3,
-                       "d_loss_r": d_loss_r.item() / 3,
-                       "d_loss_total": d_loss.item()})
 
             # Reconstruction Loss
             r_loss = criterion(r_inputs, inputs)
-            r_loss_o = criterion(r_inputs[:len(inputs_o)], inputs_o.to(device))
-            r_loss_t = criterion(r_inputs[len(inputs_o):len(inputs_o) + len(inputs_t)], inputs_t.to(device))
-            r_loss_r = criterion(r_inputs[len(inputs_o) + len(inputs_t):], inputs_r.to(device))
-            wandb.log({"r_loss_o": r_loss_o.item() / 3,
-                       "r_loss_t": r_loss_t.item() / 3,
-                       "r_loss_r": r_loss_r.item() / 3,
-                       "r_loss_total": r_loss.item()})
             
             # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
-            wandb.log({"l_loss_total": l_loss.item()})
             
             # Total Loss
-            loss = 0.5 * d_loss + 0.5 * r_loss + 1e-4 * l_loss
-            wandb.log({"total_loss": loss.item()})
+            loss = 0.5 * d_loss + 0.5 * r_loss + 1e-6 * l_loss
+            wandb.log({"total_loss": loss.item(),
+                       "dynamics_loss": d_loss.item(),
+                       "reconstruction_loss": r_loss.item(),
+                       "regularization_loss": l_loss.item()})
+            
             
             # Backward pass and optimization    
             loss.backward()
