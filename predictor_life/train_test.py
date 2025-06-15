@@ -1,0 +1,196 @@
+from typing import Any, Callable
+import numpy as np
+import torch
+from torch import Tensor
+from tqdm import tqdm
+import wandb
+from dataloader import get_dataloader
+from model_conv import SimpleAutoencoder
+
+import torch.nn as nn
+import torch.optim as optim
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader
+
+# Assuming dataloader and model_conv are already defined
+# Replace these with your actual imports or definitions
+
+# Define device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Move model to device
+model = SimpleAutoencoder().to(device)
+
+# Define loss function and optimizer
+criterion = nn.L1Loss()  # Replace with appropriate loss for your task
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+def apply_translation(grid: Tensor) -> Tensor:
+    """
+    Applies a spatial translation to the grid
+    
+    Args:
+        grid (Tensor): The input grid.
+    
+    Returns:
+        Tensor: Translated grid.
+    """
+    N = grid.shape[-1]
+    i, j = np.random.randint(0, N, size=2)
+    translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
+    return translated_grid
+
+def apply_rotation(grid: Tensor) -> Tensor:
+    """
+    Applies a rotation to the grid.
+    
+    Args:
+        grid (Tensor): The input grid.
+        angle (int): Rotation angle in degrees (must be 90, 180, or 270).
+    
+    Returns:
+        Tensor: Rotated grid.
+    """
+    
+    angle = np.random.choice([0, 90, 180, 270])  # Randomly choose an angle
+    
+    if angle == 0:
+        return grid
+    
+    # Rotate the grid using PyTorch's tensor operations
+    if angle == 90:
+        rotated_grid = grid.transpose(-2, -1).flip(-1)
+    elif angle == 180:
+        rotated_grid = grid.flip(-2).flip(-1)
+    elif angle == 270:
+        rotated_grid = grid.transpose(-2, -1).flip(-2)
+    
+    return rotated_grid
+
+# Training function
+def train_model(model: nn.Module, 
+                train_loader: DataLoader, 
+                val_loader: DataLoader, 
+                criterion: Callable[[Any], Tensor], 
+                optimizer: Optimizer, 
+                num_epochs: int = 10
+                ):
+    
+    for epoch in range(num_epochs):
+        print(f"Epoch {epoch+1}/{num_epochs}")
+        print("-" * 10)
+
+        # Training phase
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        
+        for inputs, labels in tqdm(train_loader):
+            # Zero the parameter gradients
+            optimizer.zero_grad()
+
+            # Forward pass
+            inputs_o, labels_o = inputs.clone(), labels.clone()
+            inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
+            inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
+            
+            x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
+            inputs, labels = x.to(device), y.to(device)
+            
+            outputs, r_inputs, hidden_a, hidden_b = model(inputs)
+            
+            # Dynamics Loss
+            d_loss = criterion(outputs, labels)
+            d_loss_o = criterion(outputs[:len(inputs_o)], labels_o.to(device))
+            d_loss_t = criterion(outputs[len(inputs_o):len(inputs_o) + len(inputs_t)], labels_t.to(device))
+            d_loss_r = criterion(outputs[len(inputs_o) + len(inputs_t):], labels_r.to(device))
+            
+            wandb.log({"d_loss_o": d_loss_o.item() / 3, 
+                       "d_loss_t": d_loss_t.item() / 3,
+                       "d_loss_r": d_loss_r.item() / 3,
+                       "d_loss_total": d_loss.item()})
+
+            # Reconstruction Loss
+            r_loss = criterion(r_inputs, inputs)
+            r_loss_o = criterion(r_inputs[:len(inputs_o)], inputs_o.to(device))
+            r_loss_t = criterion(r_inputs[len(inputs_o):len(inputs_o) + len(inputs_t)], inputs_t.to(device))
+            r_loss_r = criterion(r_inputs[len(inputs_o) + len(inputs_t):], inputs_r.to(device))
+            wandb.log({"r_loss_o": r_loss_o.item() / 3,
+                       "r_loss_t": r_loss_t.item() / 3,
+                       "r_loss_r": r_loss_r.item() / 3,
+                       "r_loss_total": r_loss.item()})
+            
+            # Regularization Loss
+            l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
+            wandb.log({"l_loss_total": l_loss.item()})
+            
+            # Total Loss
+            loss = 0.5 * d_loss + 0.5 * r_loss + 0.01 * l_loss
+            wandb.log({"total_loss": loss.item()})
+            
+            # Backward pass and optimization    
+            loss.backward()
+            optimizer.step()
+
+            # Statistics
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+            
+
+        epoch_loss = running_loss / len(train_loader)
+        epoch_acc = 100. * correct / total
+        print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
+        
+        wandb.log({"train_epoch_loss": epoch_loss, "train_epoch_acc": epoch_acc})
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+
+        with torch.no_grad():
+            for inputs, labels in val_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+
+                val_loss += loss.item()
+                _, predicted = outputs.max(1)
+                val_total += labels.size(0)
+                val_correct += predicted.eq(labels).sum().item()
+
+        val_epoch_loss = val_loss / len(val_loader)
+        val_epoch_acc = 100. * val_correct / val_total
+        print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
+        
+        wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
+
+train_loader = get_dataloader(
+    data_dir='./predictor_life/datasets/life/train',
+    batch_size=32,
+    shuffle=True,
+    num_workers=0,
+    split='train'
+)
+
+test_loader = get_dataloader(
+    data_dir='./predictor_life/datasets/life/test',
+    batch_size=32,
+    shuffle=False,
+    num_workers=0,
+    split='test'
+)
+
+if __name__ == "__main__":
+    print("Starting training...")
+    # Call the training function
+    
+    wandb.init(project="predictor_life")  # Replace with your WandB entity name
+    
+    train_model(model, train_loader, test_loader, criterion, optimizer, num_epochs=10)

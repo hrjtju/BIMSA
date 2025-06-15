@@ -1,2 +1,6 @@
 *.mp4
 *.npy
+
+false
+.vscode
+wandb

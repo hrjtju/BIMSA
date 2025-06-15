@@ -28,10 +28,15 @@ class SimpleAutoencoder(nn.Module):
         )
 
     def forward(self, x):
-        x = self.encoder(x)
-        x = self.transform(x)
-        x = self.decoder(x)
-        return x
+        hidden_a = self.encoder(x)
+        hidden_b = self.transform(hidden_a)
+        pred = self.decoder(hidden_b)
+        r_inputs = self.reconstruct(x)
+        
+        return pred, r_inputs, hidden_a, hidden_b
+    
+    def reconstruct(self, x):
+        return self.decoder(self.encoder(x))
 
 # 测试网络
 if __name__ == "__main__":
