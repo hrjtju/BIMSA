@@ -127,7 +127,7 @@ def train_model(model: nn.Module,
             wandb.log({"l_loss_total": l_loss.item()})
             
             # Total Loss
-            loss = 0.5 * d_loss + 0.5 * r_loss + 0.01 * l_loss
+            loss = 0.5 * d_loss + 0.5 * r_loss + 1e-4 * l_loss
             wandb.log({"total_loss": loss.item()})
             
             # Backward pass and optimization    

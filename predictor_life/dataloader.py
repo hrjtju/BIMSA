@@ -13,7 +13,7 @@ class LifeGameDataset(Dataset):
         self.file_list = file_list
 
     def __len__(self) -> int:
-        return len(self.file_list * 1000)
+        return len(self.file_list) * 1000
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         file_idx = idx // 1000
