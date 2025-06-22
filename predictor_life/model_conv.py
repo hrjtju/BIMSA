@@ -7,23 +7,27 @@ class SimpleAutoencoder(nn.Module):
         
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Conv2d(1, 16, 3, stride=2, padding=1),  # 输入通道: 1, 输出通道: 16
+            nn.Conv2d(1, 8, 3, stride=2, padding=1),  # 输入通道: 1, 输出通道: 8
             nn.ReLU(),
-            nn.Conv2d(16, 32, 3, stride=2, padding=1), # 输入通道: 16, 输出通道: 32
+            nn.Conv2d(8, 8, 3, stride=2, padding=1),  # 输入通道: 8, 输出通道: 8
+            nn.ReLU(),
+            nn.Conv2d(8, 1, 3, stride=2, padding=1), # 输入通道: 16, 输出通道: 32
             nn.ReLU()
         )
         
         # 中间变换层 (保持形状不变)
         self.transform = nn.Sequential(
-            nn.Conv2d(32, 32, 3, padding=1),  # 输入和输出通道数相同
+            nn.Conv2d(1, 1, 3, padding=1),  # 输入和输出通道数相同
             nn.ReLU()
         )
         
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),  # 转置卷积
+            nn.ConvTranspose2d(1, 8, 3, stride=2, padding=1, output_padding=0),  # 转置卷积
             nn.ReLU(),
-            nn.ConvTranspose2d(16, 1, 3, stride=2, padding=1, output_padding=1),  # 输出通道: 1
+            nn.ConvTranspose2d(8, 8, 3, stride=2, padding=1, output_padding=1),  # 转置卷积
+            nn.ReLU(),
+            nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),  # 输出通道: 1
             nn.Sigmoid()  # 输出在0-1之间
         )
 

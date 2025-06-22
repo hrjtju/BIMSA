@@ -84,12 +84,12 @@ def update(frameNum: int, img, grid: np.array, N: int):
     # copy grid since we require 8 neighbors 
     # for calculation and we go line by line 
     # global global_arr
-    if global_arr is None:
-        global_arr = grid.copy()
-    else:
-        np.stack(global_arr, grid, axis=0)
+    # if global_arr is None:
+    #     global_arr = grid.copy()
+    # else:
+    #     np.stack(global_arr, grid, axis=0)
     
-    print(global_arr.shape)
+    # print(global_arr.shape)
     newGrid = update_grid(grid, N)
     
     # update data
@@ -126,50 +126,54 @@ def main():
     if args.interval:
         updateInterval = int(args.interval)
 
-    for idx in range(10):
-        # declare grid
-        grid = np.array([])
+    # for idx in range(10):
+    #     # declare grid
+    #     grid = np.array([])
 
-        # check if "glider" demo flag is specified
-        if args.glider:
-            grid = np.zeros(N*N).reshape(N, N)
-            addGlider(1, 1, grid)
-        elif args.gosper:
-            grid = np.zeros(N*N).reshape(N, N)
-            addGosperGliderGun(10, 10, grid)
+    #     # check if "glider" demo flag is specified
+    #     if args.glider:
+    #         grid = np.zeros(N*N).reshape(N, N)
+    #         addGlider(1, 1, grid)
+    #     elif args.gosper:
+    #         grid = np.zeros(N*N).reshape(N, N)
+    #         addGosperGliderGun(10, 10, grid)
 
-        else:   # populate grid with random on/off -
-                # more off than on
-            grid = randomGrid(N)
+    #     else:   # populate grid with random on/off -
+    #             # more off than on
+    #         grid = randomGrid(N)
         
-        for j in range(10):
-            for _ in tqdm(range(int(1e3))):
-                if global_arr is None:
-                    global_arr = grid.copy()[None, ...]
-                else:
-                    global_arr = np.vstack([global_arr, grid[None, ...]])
-                    # print(global_arr.shape)
+    #     for j in range(10):
+    #         for _ in tqdm(range(int(1e3))):
+    #             if global_arr is None:
+    #                 global_arr = grid.copy()[None, ...]
+    #             else:
+    #                 global_arr = np.vstack([global_arr, grid[None, ...]])
+    #                 # print(global_arr.shape)
                 
-                grid = update_grid(grid, N)
+    #             grid = update_grid(grid, N)
             
-            np.save(f"./predictor_life/datasets/life/train_{N}_{idx}_{j}.npy", global_arr)
+    #         # np.save(f"./predictor_life/datasets/life/train_{N}_{idx}_{j}.npy", global_arr)
             
-            global_arr = None
+    #         global_arr = None
+    
+    grid = np.array([])
+
+    grid = randomGrid(N)
     
     # set up animation
-    # fig, ax = plt.subplots()
-    # img = ax.imshow(grid, interpolation='nearest')
-    # ani = animation.FuncAnimation(fig, update, fargs=(img, grid, N, ),
-    #                               frames = 10,
-    #                               interval=updateInterval,
-    #                               save_count=50)
+    fig, ax = plt.subplots()
+    img = ax.imshow(grid, interpolation='nearest')
+    ani = animation.FuncAnimation(fig, update, fargs=(img, grid, N, ),
+                                  frames = 10,
+                                  interval=updateInterval,
+                                  save_count=50)
 
-    # # of frames? 
+    # of frames? 
     # set output file
-    # if args.movfile:
-    #     ani.save(args.movfile, fps=30, extra_args=['-vcodec', 'libx264'])
+    if args.movfile:
+        ani.save(args.movfile, fps=30, extra_args=['-vcodec', 'libx264'])
 
-    # plt.show()
+    plt.show()
 
 # call main
 if __name__ == '__main__':

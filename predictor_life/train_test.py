@@ -22,8 +22,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SimpleAutoencoder().to(device)
 
 # Define loss function and optimizer
-criterion = nn.L1Loss()  # Replace with appropriate loss for your task
-optimizer = optim.Adam(model.parameters(), lr=0.01)
+criterion = nn.Loss()  # Replace with appropriate loss for your task
+optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
     """
@@ -89,41 +89,48 @@ def train_model(model: nn.Module,
             optimizer.zero_grad()
 
             # Forward pass
-            inputs_o, labels_o = inputs.clone(), labels.clone()
-            inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
-            inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
+            # inputs_o, labels_o = inputs.clone(), labels.clone()
+            # inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
+            # inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
             
-            x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
-            inputs, labels = x.to(device), y.to(device)
+            # x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
+            # inputs, labels = x.to(device), y.to(device)
             
-            outputs, r_inputs, hidden_a, hidden_b = model(inputs)
+            outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
             
             # Dynamics Loss
-            d_loss = criterion(outputs, labels)
+            d_loss = torch.norm(outputs - labels.to(device).detach())
 
             # Reconstruction Loss
-            r_loss = criterion(r_inputs, inputs)
+            # r_loss = criterion(r_inputs, inputs)
             
-            # Regularization Loss
-            l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
+            # # Regularization Loss
+            # l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
             
             # Total Loss
-            loss = 0.5 * d_loss + 0.5 * r_loss + 1e-6 * l_loss
-            wandb.log({"total_loss": loss.item(),
-                       "dynamics_loss": d_loss.item(),
-                       "reconstruction_loss": r_loss.item(),
-                       "regularization_loss": l_loss.item()})
+            loss = d_loss #  + 0.5 * r_loss + 1e-6 * l_loss
             
             
             # Backward pass and optimization    
             loss.backward()
+            
+            # apply gradient clipping
+            norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
+            wandb.log({"total_loss": loss.item(),
+                       "dynamics_loss": d_loss.item(),
+                       "gradient_norm": norm.item(),
+                    #    "reconstruction_loss": r_loss.item(),
+                    #    "regularization_loss": l_loss.item()
+                       })
+            
             optimizer.step()
 
             # Statistics
             running_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+            # _, predicted = outputs.max(1)
+            # total += labels.size(0)
+            # correct += predicted.eq(labels.to(device)).sum().item()
             
 
         epoch_loss = running_loss / len(train_loader)
@@ -142,7 +149,7 @@ def train_model(model: nn.Module,
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs = model(inputs)
+                outputs, *_ = model(inputs)
                 loss = criterion(outputs, labels)
 
                 val_loss += loss.item()
@@ -158,7 +165,7 @@ def train_model(model: nn.Module,
 
 train_loader = get_dataloader(
     data_dir='./predictor_life/datasets/life/train',
-    batch_size=32,
+    batch_size=8,
     shuffle=True,
     num_workers=0,
     split='train'
@@ -166,7 +173,7 @@ train_loader = get_dataloader(
 
 test_loader = get_dataloader(
     data_dir='./predictor_life/datasets/life/test',
-    batch_size=32,
+    batch_size=2,
     shuffle=False,
     num_workers=0,
     split='test'
