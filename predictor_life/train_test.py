@@ -73,6 +73,9 @@ def train_model(model: nn.Module,
                 num_epochs: int = 10
                 ):
     
+    # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
+    # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
+    
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
         print("-" * 10)

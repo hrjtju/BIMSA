@@ -6,6 +6,7 @@ class SimpleAutoencoder(nn.Module):
         super(SimpleAutoencoder, self).__init__()
         
         # Encoder
+        # TODO: 增加复杂度
         self.encoder = nn.Sequential(
             nn.Conv2d(1, 8, 3, stride=2, padding=1),  # 输入通道: 1, 输出通道: 8
             nn.ReLU(),
@@ -15,13 +16,16 @@ class SimpleAutoencoder(nn.Module):
             nn.ReLU()
         )
         
+        
         # 中间变换层 (保持形状不变)
+        # TODO: 变成线性层 
         self.transform = nn.Sequential(
             nn.Conv2d(1, 1, 3, padding=1),  # 输入和输出通道数相同
             nn.ReLU()
         )
         
         # Decoder
+        # TODO: 增加复杂度
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(1, 8, 3, stride=2, padding=1, output_padding=0),  # 转置卷积
             nn.ReLU(),
@@ -32,6 +36,8 @@ class SimpleAutoencoder(nn.Module):
         )
 
     def forward(self, x):
+        # TODO: 添加残差链接，类似 UNet 结构
+        
         hidden_a = self.encoder(x)
         hidden_b = self.transform(hidden_a) + hidden_a
         pred = self.decoder(hidden_b)
