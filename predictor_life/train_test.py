@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Callable
 import numpy as np
 import torch
@@ -22,7 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SimpleAutoencoder().to(device)
 
 # Define loss function and optimizer
-criterion = nn.Loss()  # Replace with appropriate loss for your task
+criterion = nn.BCELoss()  # Replace with appropriate loss for your task
 optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
@@ -76,6 +77,8 @@ def train_model(model: nn.Module,
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
+    r_ratio = 1
+    
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
         print("-" * 10)
@@ -91,6 +94,8 @@ def train_model(model: nn.Module,
             # Zero the parameter gradients
             optimizer.zero_grad()
 
+            r_ratio = max(1e-3, r_ratio * (1 - 1e-6))  # Decrease r_ratio over epochs
+
             # Forward pass
             # inputs_o, labels_o = inputs.clone(), labels.clone()
             # inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
@@ -101,18 +106,22 @@ def train_model(model: nn.Module,
             
             outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
             
+            onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
+            
             # Dynamics Loss
-            d_loss = torch.norm(outputs - labels.to(device).detach())
+            bs, ch, *_ = outputs.shape
+            d_loss = criterion(outputs.reshape(-1, ch), 
+                               onehot_fn(labels.to(device).reshape(-1).long()).float())
 
             # Reconstruction Loss
-            # r_loss = criterion(r_inputs, inputs)
+            r_loss = criterion(r_inputs.reshape(-1, ch), 
+                               onehot_fn(inputs.reshape(-1).long()).float())
             
             # # Regularization Loss
-            # l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
+            l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
             
             # Total Loss
-            loss = d_loss #  + 0.5 * r_loss + 1e-6 * l_loss
-            
+            loss = (1 - r_ratio) * d_loss + r_ratio * r_loss + 1e-8 * l_loss
             
             # Backward pass and optimization    
             loss.backward()
@@ -123,17 +132,17 @@ def train_model(model: nn.Module,
             wandb.log({"total_loss": loss.item(),
                        "dynamics_loss": d_loss.item(),
                        "gradient_norm": norm.item(),
-                    #    "reconstruction_loss": r_loss.item(),
-                    #    "regularization_loss": l_loss.item()
+                       "reconstruction_loss": r_loss.item(),
+                       "regularization_loss": l_loss.item()
                        })
             
             optimizer.step()
 
             # Statistics
             running_loss += loss.item()
-            # _, predicted = outputs.max(1)
-            # total += labels.size(0)
-            # correct += predicted.eq(labels.to(device)).sum().item()
+            _, predicted = outputs.max(1)
+            total += labels.size(0) * labels.size(1) * labels.size(2)  # Assuming labels are 3D tensors
+            correct += predicted.eq(labels.to(device)).sum().item()
             
 
         epoch_loss = running_loss / len(train_loader)
@@ -167,7 +176,7 @@ def train_model(model: nn.Module,
         wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
 
 train_loader = get_dataloader(
-    data_dir='./predictor_life/datasets/life/train',
+    data_dir='./predictor_life/datasets/life',
     batch_size=8,
     shuffle=True,
     num_workers=0,
@@ -175,7 +184,7 @@ train_loader = get_dataloader(
 )
 
 test_loader = get_dataloader(
-    data_dir='./predictor_life/datasets/life/test',
+    data_dir='./predictor_life/datasets/life',
     batch_size=2,
     shuffle=False,
     num_workers=0,
