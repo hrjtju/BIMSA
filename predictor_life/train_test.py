@@ -115,7 +115,7 @@ def train_model(model: nn.Module,
 
             # Reconstruction Loss
             r_loss = criterion(r_inputs.reshape(-1, ch), 
-                               onehot_fn(inputs.reshape(-1).long()).float())
+                               onehot_fn(inputs.detach().reshape(-1).long()).float())
             
             # # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
