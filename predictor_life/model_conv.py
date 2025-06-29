@@ -1,49 +1,75 @@
+from typing import Tuple
 import torch
 import torch.nn as nn
+from unet_parts import *
 
 class SimpleAutoencoder(nn.Module):
     def __init__(self):
         super(SimpleAutoencoder, self).__init__()
         
+        self.n_channels = 1
+        self.n_classes = 2
+        self.bilinear = True
+        
         # Encoder
         # TODO: 增加复杂度
-        self.encoder = nn.Sequential(
-            nn.Conv2d(1, 8, 3, stride=2, padding=1),  # 输入通道: 1, 输出通道: 8
-            nn.ReLU(),
-            nn.Conv2d(8, 8, 3, stride=2, padding=1),  # 输入通道: 8, 输出通道: 8
-            nn.ReLU(),
-            nn.Conv2d(8, 1, 3, stride=2, padding=1), # 输入通道: 16, 输出通道: 32
-            nn.ReLU()
-        )
+        self.inc = (DoubleConv(self.n_channels, 32))
+        self.down1 = (Down(32, 64))
+        self.down2 = (Down(64, 128))
+        self.down3 = (Down(128, 256))
+        factor = 2 if self.bilinear else 1
+        self.down4 = (Down(256, 512 // factor))
         
+        self.tmp_arr = torch.randn((8, 1, 100, 100))
+        self.in_dim_ = self.down4(self.down3(self.down2(self.down1(self.inc(self.tmp_arr))))).flatten(1).shape[-1]
         
         # 中间变换层 (保持形状不变)
         # TODO: 变成线性层 
         self.transform = nn.Sequential(
-            nn.Conv2d(1, 1, 3, padding=1),  # 输入和输出通道数相同
-            nn.ReLU()
+            nn.Linear(self.in_dim_, self.in_dim_ // 8),  # 输入和输出通道数相同
+            nn.LeakyReLU(),
+            nn.Linear(self.in_dim_ // 8, self.in_dim_ // 8),
+            nn.LeakyReLU(),
+            nn.Linear(self.in_dim_ // 8, self.in_dim_),
+            nn.LeakyReLU(),
         )
         
         # Decoder
         # TODO: 增加复杂度
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(1, 8, 3, stride=2, padding=1, output_padding=0),  # 转置卷积
-            nn.ReLU(),
-            nn.ConvTranspose2d(8, 8, 3, stride=2, padding=1, output_padding=1),  # 转置卷积
-            nn.ReLU(),
-            nn.ConvTranspose2d(8, 1, 3, stride=2, padding=1, output_padding=1),  # 输出通道: 1
-            nn.Sigmoid()  # 输出在0-1之间
-        )
+        
+        
+        self.up1 = (Up(512, 256 // factor, self.bilinear))
+        self.up2 = (Up(256, 128 // factor, self.bilinear))
+        self.up3 = (Up(128, 64 // factor, self.bilinear))
+        self.up4 = (Up(64, 32, self.bilinear))
+        self.outc = (OutConv(32, self.n_classes))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # TODO: 添加残差链接，类似 UNet 结构
         
-        hidden_a = self.encoder(x)
-        hidden_b = self.transform(hidden_a) + hidden_a
-        pred = self.decoder(hidden_b)
-        r_inputs = self.reconstruct(x)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5: torch.Tensor = self.down4(x4)
         
-        return pred, r_inputs, hidden_a, hidden_b
+        y: torch.Tensor = self.transform(x5.flatten(1)).reshape(*x5.shape)
+        x_tmp = x
+        
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
+        r_inputs = F.sigmoid(self.outc(x))
+        
+        x_tmp = self.up1(y, x4)
+        x_tmp = self.up2(x_tmp, x3)
+        x_tmp = self.up3(x_tmp, x2)
+        x_tmp = self.up4(x_tmp, x1)
+        logits = F.sigmoid(self.outc(x_tmp))
+        
+        return logits, r_inputs, x5.flatten(1), y.flatten(1)
+        # return pred, r_inputs, hidden_a, hidden_b
     
     def reconstruct(self, x):
         return self.decoder(self.encoder(x))
