@@ -22,8 +22,8 @@ class LifeGameDataset(Dataset):
         t = np.random.randint(0, data.shape[0] - 1)
         x = data[t]
         y = data[t + 1]
-        x = torch.tensor(x, dtype=torch.float32)[None, ...]
-        y = torch.tensor(y, dtype=torch.float32)[None, ...]
+        x = (torch.tensor(x, dtype=torch.float32)[None, ...] / 255)
+        y = (torch.tensor(y, dtype=torch.float32)[None, ...] / 255)
         return x, y
 
 def get_dataloader(data_dir, batch_size: int, shuffle: bool = True, num_workers: int = 0, split: str = 'train', split_ratio: float = 0.8):
