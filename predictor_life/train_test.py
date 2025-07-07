@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 import numpy as np
 import torch
 from torch import Tensor
@@ -12,6 +12,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from torch.nn.functional import softmax
+
+import os 
+
+bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', '/root/autodl-tmp/life/')
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -23,7 +28,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SimpleAutoencoder().to(device)
 
 # Define loss function and optimizer
-criterion = nn.BCELoss()  # Replace with appropriate loss for your task
+criterion = nn.CrossEntropyLoss()  # Replace with appropriate loss for your task
 optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
@@ -66,13 +71,15 @@ def apply_rotation(grid: Tensor) -> Tensor:
     return rotated_grid
 
 # Training function
-def train_model(model: nn.Module, 
+def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]], 
                 train_loader: DataLoader, 
                 val_loader: DataLoader, 
                 criterion: Callable[[Any], Tensor], 
                 optimizer: Optimizer, 
                 num_epochs: int = 10
                 ):
+    
+    onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
     
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
@@ -89,6 +96,7 @@ def train_model(model: nn.Module,
         correct = 0
         total = 0
         
+        best_acc = 0.0
         
         for inputs, labels in tqdm(train_loader):
             # Zero the parameter gradients
@@ -106,47 +114,59 @@ def train_model(model: nn.Module,
             
             outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
             
-            onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
-            
             # Dynamics Loss
             bs, ch, *_ = outputs.shape
-            d_loss = criterion(outputs.reshape(-1, ch), 
+            d_loss = criterion(softmax(outputs.reshape(-1, ch), dim=-1), 
                                onehot_fn(labels.to(device).reshape(-1).long()).float())
 
             # Reconstruction Loss
-            r_loss = criterion(r_inputs.reshape(-1, ch), 
-                               onehot_fn(inputs.detach().reshape(-1).long()).float())
+            r_loss = criterion(softmax(r_inputs.reshape(-1, ch), dim=-1), 
+                               onehot_fn(inputs.to(device).reshape(-1).long()).float())
             
             # # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
             
             # Total Loss
             loss = (1 - r_ratio) * d_loss + r_ratio * r_loss + 1e-8 * l_loss
+            wandb.log({"total_loss": loss.item(),
+                       "dynamics_loss": d_loss.item(),
+                       "reconstruction_loss": r_loss.item(),
+                       "regularization_loss": l_loss.item()
+                       })
             
             # Backward pass and optimization    
             loss.backward()
             
             # apply gradient clipping
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
-            wandb.log({"total_loss": loss.item(),
-                       "dynamics_loss": d_loss.item(),
-                       "gradient_norm": norm.item(),
-                       "reconstruction_loss": r_loss.item(),
-                       "regularization_loss": l_loss.item()
-                       })
+
+            wandb.log({
+                       "gradient_norm": norm.item()
+            })
             
             optimizer.step()
 
             # Statistics
+
+                # _, predicted = outputs.argmax(1, keepdims=True)
+                # val_total += labels.view(-1).size(0)
+                # val_correct += predicted.eq(labels).sum().item()
+                
             running_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0) * labels.size(1) * labels.size(2)  # Assuming labels are 3D tensors
+            predicted = outputs.argmax(1, keepdims=True)
+            total += labels.view(-1).size(0)
             correct += predicted.eq(labels.to(device)).sum().item()
             
 
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
+        
+        if epoch_acc > best_acc:
+            best_acc = epoch_acc
+            # Save the model checkpoint if needed
+            torch.save(model.state_dict(), f'best_life_UNet_{SimpleAutoencoder.__version__}.pth')
+        torch.save(model.state_dict(), f'last_life_UNet_{SimpleAutoencoder.__version__}.pth')
+        
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
         
         wandb.log({"train_epoch_loss": epoch_loss, "train_epoch_acc": epoch_acc})
@@ -162,11 +182,15 @@ def train_model(model: nn.Module,
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 outputs, *_ = model(inputs)
-                loss = criterion(outputs, labels)
+                bs, ch, *_ = outputs.shape
+                loss = criterion(softmax(outputs.reshape(-1, ch), dim=-1), 
+                                 onehot_fn(labels.to(device).reshape(-1).long()).float())
 
                 val_loss += loss.item()
-                _, predicted = outputs.max(1)
-                val_total += labels.size(0)
+                
+                # TODO: Check.
+                predicted = outputs.argmax(1, keepdims=True)
+                val_total += labels.view(-1).size(0)
                 val_correct += predicted.eq(labels).sum().item()
 
         val_epoch_loss = val_loss / len(val_loader)
@@ -176,7 +200,7 @@ def train_model(model: nn.Module,
         wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
 
 train_loader = get_dataloader(
-    data_dir='./predictor_life/datasets/life',
+    data_dir=bimsa_life_100_dir,
     batch_size=8,
     shuffle=True,
     num_workers=0,
@@ -184,7 +208,7 @@ train_loader = get_dataloader(
 )
 
 test_loader = get_dataloader(
-    data_dir='./predictor_life/datasets/life',
+    data_dir=bimsa_life_100_dir,
     batch_size=2,
     shuffle=False,
     num_workers=0,
