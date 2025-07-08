@@ -15,7 +15,6 @@ class SimpleAutoencoder(nn.Module):
         self.bilinear = True
         
         # Encoder
-        # TODO: 增加复杂度
         self.inc = (DoubleConv(self.n_channels, 32))
         self.down1 = (Down(32, 64))
         self.down2 = (Down(64, 128))
@@ -38,9 +37,6 @@ class SimpleAutoencoder(nn.Module):
         )
         
         # Decoder
-        # TODO: 增加复杂度
-        
-        
         self.up1 = (Up(512, 256 // factor, self.bilinear))
         self.up2 = (Up(256, 128 // factor, self.bilinear))
         self.up3 = (Up(128, 64 // factor, self.bilinear))
