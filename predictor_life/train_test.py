@@ -164,7 +164,9 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
             total += labels.view(-1).size(0)
             total += labels.numel()
-            correct += predicted.eq(labels.to(device)).sum().item()
+            correct += item_correct:=predicted.eq(labels.to(device)).sum().item()
+            
+            wandb.log({"item_acc": item_correct / labels.numel() * 100})
             
             if idx % 100 == 0:
                     sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
