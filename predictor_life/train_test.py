@@ -91,7 +91,8 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
     r_ratio = 1
-    
+    scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.15, step_size_up=50, step_size_down=10)
+
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
         print("-" * 10)
@@ -153,6 +154,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             })
             
             optimizer.step()
+            scheduler.step()
 
             # Statistics
 
