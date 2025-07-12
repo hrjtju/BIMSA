@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
-from torch.nn.functional import softmax
+from torch.nn.functional import softmax, cross_entropy
 
 from einops import rearrange, reduce
 from jaxtyping import Float, Array
@@ -31,7 +31,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SimpleAutoencoder().to(device)
 
 # Define loss function and optimizer
-criterion = nn.CrossEntropyLoss()  # Replace with appropriate loss for your task
 optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
@@ -124,11 +123,13 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             # Dynamics Loss
             bs, ch, *_ = outputs.shape
             output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
-            d_loss = criterion(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float())
+            output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
+            d_loss = cross_entropy(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float(), weight=labels.numel() / torch.tensor(output_class_num, dtype=torch.float32).to(device))
 
             # Reconstruction Loss
             r_input_softmax = softmax(rearrange(r_inputs, "batch c w h -> (batch w h) c"), dim=-1)
-            r_loss = criterion(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float())
+            input_class_num = [(dead_r:=(inputs == 0).sum()), labels.numel() - dead_r]
+            r_loss = cross_entropy(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float(), weight=labels.numel() / torch.tensor(input_class_num, dtype=torch.float32).to(device))
             
             # # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
@@ -201,6 +202,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
         val_total = 0
 
         with torch.no_grad():
+            criterion = nn.CrossEntropyLoss() 
             for idx, (inputs, labels) in tqdm(enumerate(val_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
@@ -260,4 +262,4 @@ if __name__ == "__main__":
     
     wandb.init(project="predictor_life")  # Replace with your WandB entity name
     
-    train_model(model, train_loader, test_loader, criterion, optimizer, num_epochs=10)
+    train_model(model, train_loader, test_loader, None, optimizer, num_epochs=10)
