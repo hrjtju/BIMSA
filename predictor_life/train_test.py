@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Iterable, Tuple
 import numpy as np
 import torch
 from torch import Tensor
@@ -14,9 +14,12 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torch.nn.functional import softmax
 
+from einops import rearrange, reduce
+from jaxtyping import Float, Array
+
 import os 
 
-bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', '/root/autodl-tmp/life/')
+bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR')
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -71,9 +74,13 @@ def apply_rotation(grid: Tensor) -> Tensor:
     return rotated_grid
 
 # Training function
-def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]], 
-                train_loader: DataLoader, 
-                val_loader: DataLoader, 
+def train_model(model: Callable[[Float[Array, "batch 1 w h"]], 
+                                Tuple[Float[Array, "batch 2 w h"], 
+                                      Float[Array, "batch 1 w h"], 
+                                      Float[Array, "batch h_dim"], 
+                                      Float[Array, "batch h_dim"]]], 
+                train_loader: Iterable[Tuple[Float[Array, "batch 1 w h"], Float[Array, "batch 1 w h"]]], 
+                val_loader: Iterable[Tuple[Float[Array, "batch 1 w h"], Float[Array, "batch 1 w h"]]], 
                 criterion: Callable[[Any], Tensor], 
                 optimizer: Optimizer, 
                 num_epochs: int = 10
@@ -116,12 +123,12 @@ def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]]
             
             # Dynamics Loss
             bs, ch, *_ = outputs.shape
-            d_loss = criterion(softmax(outputs.reshape(-1, ch), dim=-1), 
-                               onehot_fn(labels.to(device).reshape(-1).long()).float())
+            output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
+            d_loss = criterion(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float())
 
             # Reconstruction Loss
-            r_loss = criterion(softmax(r_inputs.reshape(-1, ch), dim=-1), 
-                               onehot_fn(inputs.to(device).reshape(-1).long()).float())
+            r_input_softmax = softmax(rearrange(r_inputs, "batch c w h -> (batch w h) c"), dim=-1)
+            r_loss = criterion(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float())
             
             # # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
@@ -153,9 +160,12 @@ def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]]
                 # val_correct += predicted.eq(labels).sum().item()
                 
             running_loss += loss.item()
-            predicted = outputs.argmax(1, keepdims=True)
+            predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
             total += labels.view(-1).size(0)
+            total += labels.numel()
             correct += predicted.eq(labels.to(device)).sum().item()
+            
+            assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
 
         epoch_loss = running_loss / len(train_loader)
@@ -183,15 +193,18 @@ def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]]
 
                 outputs, *_ = model(inputs)
                 bs, ch, *_ = outputs.shape
-                loss = criterion(softmax(outputs.reshape(-1, ch), dim=-1), 
+                output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
+                loss = criterion(output_softmax, 
                                  onehot_fn(labels.to(device).reshape(-1).long()).float())
 
                 val_loss += loss.item()
                 
                 # TODO: Check.
-                predicted = outputs.argmax(1, keepdims=True)
-                val_total += labels.view(-1).size(0)
+                predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
+                val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
+                
+                assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
 
         val_epoch_loss = val_loss / len(val_loader)
         val_epoch_acc = 100. * val_correct / val_total

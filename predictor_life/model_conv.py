@@ -2,6 +2,8 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 from unet_parts import *
+from einops import rearrange, reduce
+from jaxtyping import Float, Array
 
 class SimpleAutoencoder(nn.Module):
     
@@ -43,7 +45,10 @@ class SimpleAutoencoder(nn.Module):
         self.up4 = (Up(64, 32, self.bilinear))
         self.outc = (OutConv(32, self.n_classes))
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: Float[Array, "batch 1 w h"]) -> Tuple[Float[Array, "batch 2 w h"], 
+                                                                Float[Array, "batch 1 w h"], 
+                                                                Float[Array, "batch h_dim"], 
+                                                                Float[Array, "batch h_dim"]]:
         # TODO: 添加残差链接，类似 UNet 结构
         
         x1 = self.inc(x)
@@ -52,7 +57,8 @@ class SimpleAutoencoder(nn.Module):
         x4 = self.down3(x3)
         x5: torch.Tensor = self.down4(x4)
         
-        y: torch.Tensor = self.transform(x5.flatten(1)).reshape(*x5.shape)
+        # y: torch.Tensor = self.transform(x5.flatten(1)).reshape(*x5.shape)
+        y: torch.Tensor = self.transform(rearrange(x5, "batch ... -> batch (...)")).reshape(*x5.shape)
         x_tmp = x
         
         x = self.up1(x5, x4)
@@ -66,10 +72,12 @@ class SimpleAutoencoder(nn.Module):
         x_tmp = self.up3(x_tmp, x2)
         x_tmp = self.up4(x_tmp, x1)
         logits = F.sigmoid(self.outc(x_tmp))
-        
-        return logits, r_inputs, x5.flatten(1), y.flatten(1)
-        # return pred, r_inputs, hidden_a, hidden_b
-    
+
+        return logits,\
+            r_inputs, \
+            rearrange(x5, "batch ... -> batch (...)"), \
+            rearrange(y, "batch ... -> batch (...)")
+
     def reconstruct(self, x):
         return self.decoder(self.encoder(x))
 
