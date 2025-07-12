@@ -169,7 +169,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                     sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
                     
                     # construct image grid for wandb
-                    img_output = outputs[sample_idx, 0][None, ...].cpu()
+                    img_output = outputs[sample_idx, 1][None, ...].cpu()
                     labels_output = labels[sample_idx].cpu()
                     predicted_output = predicted[sample_idx].cpu()
                     
@@ -218,14 +218,20 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                 val_correct += predicted.eq(labels).sum().item()
         
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
-
+                
                 if idx % 100 == 0:
-                    sample_idx = torch.randint(0, inputs.shape[0], (1,))
-                    wandb.log({
-                        "sample_input": wandb.Image(rearrange(outputs[sample_idx, 0], "w h -> w h 1").cpu()),
-                        "sample_label": wandb.Image(rearrange(labels[sample_idx], "c w h -> w h c").cpu())
-                    })
-                    
+                        sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
+                        
+                        # construct image grid for wandb
+                        img_output = outputs[sample_idx, 1][None, ...].cpu()
+                        labels_output = labels[sample_idx].cpu()
+                        predicted_output = predicted[sample_idx].cpu()
+                        
+                        wandb.log({
+                            "test_sample": wandb.Image(rearrange([img_output, labels_output, predicted_output], 
+                                                                "n c h w -> c h (n w)").cpu()),
+                        })
+        
         val_epoch_loss = val_loss / len(val_loader)
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
