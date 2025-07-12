@@ -175,7 +175,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                     predicted_output = predicted[sample_idx].cpu()
                     
                     wandb.log({
-                        "train_sample": wandb.Image(rearrange([img_output, labels_output, predicted_output], 
+                        "train_sample": wandb.Image(rearrange([labels_output, img_output, predicted_output],
                                                               "n c h w -> c h (n w)").cpu()),
                     })
         
