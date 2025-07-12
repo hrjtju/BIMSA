@@ -105,19 +105,19 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
         
         best_acc = 0.0
         
-        for inputs, labels in tqdm(train_loader):
+        for idx, (inputs, labels) in tqdm(enumerate(train_loader)):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
             r_ratio = max(1e-3, r_ratio * (1 - 1e-6))  # Decrease r_ratio over epochs
 
             # Forward pass
-            # inputs_o, labels_o = inputs.clone(), labels.clone()
-            # inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
-            # inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
+            inputs_o, labels_o = inputs.clone(), labels.clone()
+            inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
+            inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
             
-            # x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
-            # inputs, labels = x.to(device), y.to(device)
+            x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
+            inputs, labels = x.to(device), y.to(device)
             
             outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
             
@@ -165,6 +165,19 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             total += labels.numel()
             correct += predicted.eq(labels.to(device)).sum().item()
             
+            if idx % 100 == 0:
+                    sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
+                    
+                    # construct image grid for wandb
+                    img_output = outputs[sample_idx, 0][None, ...].cpu()
+                    labels_output = labels[sample_idx].cpu()
+                    predicted_output = predicted[sample_idx].cpu()
+                    
+                    wandb.log({
+                        "train_sample": wandb.Image(rearrange([img_output, labels_output, predicted_output], 
+                                                              "n c h w -> c h (n w)").cpu()),
+                    })
+        
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
 
@@ -188,7 +201,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
         val_total = 0
 
         with torch.no_grad():
-            for inputs, labels in val_loader:
+            for idx, (inputs, labels) in tqdm(enumerate(val_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 outputs, *_ = model(inputs)
@@ -203,9 +216,16 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                 predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
-                
+        
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
 
+                if idx % 100 == 0:
+                    sample_idx = torch.randint(0, inputs.shape[0], (1,))
+                    wandb.log({
+                        "sample_input": wandb.Image(rearrange(outputs[sample_idx, 0], "w h -> w h 1").cpu()),
+                        "sample_label": wandb.Image(rearrange(labels[sample_idx], "c w h -> w h c").cpu())
+                    })
+                    
         val_epoch_loss = val_loss / len(val_loader)
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
