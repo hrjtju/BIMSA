@@ -11,6 +11,7 @@ dependencies = [
     "matplotlib>=3.10.3",
     "numba>=0.61.2",
     "numpy<=1.26",
+    "toml>=0.10.2",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
     "tqdm>=4.67.1",

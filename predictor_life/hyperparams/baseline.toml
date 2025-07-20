@@ -1,0 +1,25 @@
+[dataloader]
+    [train]
+    batch_size = 32
+    num_workers = 4
+    shuffle = true
+
+    [test]
+    batch_size = 32
+    num_workers = 4
+    shuffle = false
+
+[optimizer]
+type = "AdamW"
+lr = 1e-5
+
+[lr_scheduler]
+type = "CosineAnnealingLR"
+    [kwargs]
+    T_max = 100
+    eta_min = 1e-6
+
+[training]
+epochs = 10
+
+

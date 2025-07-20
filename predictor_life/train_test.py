@@ -1,6 +1,8 @@
+import argparse
 from functools import partial
 from typing import Any, Callable, Iterable, Tuple
 import numpy as np
+import toml
 import torch
 from torch import Tensor
 from tqdm import tqdm
@@ -31,7 +33,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SimpleAutoencoder().to(device)
 
 # Define loss function and optimizer
-optimizer = optim.Adam(model.parameters(), lr=1e-5)
+optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
     """
@@ -82,7 +84,8 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                 val_loader: Iterable[Tuple[Float[Array, "batch 1 w h"], Float[Array, "batch 1 w h"]]], 
                 criterion: Callable[[Any], Tensor], 
                 optimizer: Optimizer, 
-                num_epochs: int = 10
+                num_epochs: int = 10,
+                use_lr_scheduler: bool = True
                 ):
     
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
@@ -91,7 +94,8 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
     r_ratio = 1
-    scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.15, step_size_up=50, step_size_down=10)
+    if use_lr_scheduler:
+        scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.15, step_size_up=50, step_size_down=10)
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
@@ -109,8 +113,6 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             # Zero the parameter gradients
             optimizer.zero_grad()
 
-            r_ratio = max(1e-3, r_ratio * (1 - 1e-6))  # Decrease r_ratio over epochs
-
             # Forward pass
             inputs_o, labels_o = inputs.clone(), labels.clone()
             inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
@@ -125,12 +127,14 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             bs, ch, *_ = outputs.shape
             output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
-            d_loss = cross_entropy(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float(), weight=labels.numel() / torch.tensor(output_class_num, dtype=torch.float32).to(device))
+            d_loss = cross_entropy(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float(), weight=labels.numel() \
+                / torch.tensor(output_class_num, dtype=torch.float32).to(device))
 
             # Reconstruction Loss
             r_input_softmax = softmax(rearrange(r_inputs, "batch c w h -> (batch w h) c"), dim=-1)
             input_class_num = [(dead_r:=(inputs == 0).sum()), labels.numel() - dead_r]
-            r_loss = cross_entropy(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float(), weight=labels.numel() / torch.tensor(input_class_num, dtype=torch.float32).to(device))
+            r_loss = cross_entropy(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float(), weight=labels.numel() \
+                / torch.tensor(input_class_num, dtype=torch.float32).to(device))
             
             # # Regularization Loss
             l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
@@ -140,9 +144,11 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             wandb.log({"total_loss": loss.item(),
                        "dynamics_loss": d_loss.item(),
                        "reconstruction_loss": r_loss.item(),
-                       "regularization_loss": l_loss.item()
+                       "regularization_loss": l_loss.item(),
+                       "r_ratio": r_ratio
                        })
             
+            r_ratio = max(1e-3, r_ratio * (1 - 1e-6))  # Decrease r_ratio over epochs
             # Backward pass and optimization    
             loss.backward()
             
@@ -154,7 +160,8 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
             })
             
             optimizer.step()
-            scheduler.step()
+            if use_lr_scheduler:
+                scheduler.step()
 
             # Statistics
 
@@ -261,6 +268,13 @@ test_loader = get_dataloader(
 )
 
 if __name__ == "__main__":
+    # reads the command line arguments
+    args = argparse.ArgumentParser(description="Train the Predictor Life model")
+    args.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life/hyperparams/baseline.toml", help="Path to hyperparameters file")
+    args = args.parse_args()
+
+    args_dict = toml.load(args.hyperparameters)
+    
     print("Starting training...")
     # Call the training function
     
