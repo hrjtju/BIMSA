@@ -9,6 +9,7 @@ from tqdm import tqdm
 import wandb
 from dataloader import get_dataloader
 from model_conv import SimpleAutoencoder
+from args import Args
 
 import torch.nn as nn
 import torch.optim as optim
@@ -21,19 +22,10 @@ from jaxtyping import Float, Array
 
 import os 
 
-bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR')
+bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
-
-# Define device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Move model to device
-model = SimpleAutoencoder().to(device)
-
-# Define loss function and optimizer
-optimizer = optim.AdamW(model.parameters(), lr=1e-5)
 
 def apply_translation(grid: Tensor) -> Tensor:
     """
@@ -75,30 +67,52 @@ def apply_rotation(grid: Tensor) -> Tensor:
     return rotated_grid
 
 # Training function
-def train_model(model: Callable[[Float[Array, "batch 1 w h"]], 
-                                Tuple[Float[Array, "batch 2 w h"], 
-                                      Float[Array, "batch 1 w h"], 
-                                      Float[Array, "batch h_dim"], 
-                                      Float[Array, "batch h_dim"]]], 
-                train_loader: Iterable[Tuple[Float[Array, "batch 1 w h"], Float[Array, "batch 1 w h"]]], 
-                val_loader: Iterable[Tuple[Float[Array, "batch 1 w h"], Float[Array, "batch 1 w h"]]], 
-                criterion: Callable[[Any], Tensor], 
-                optimizer: Optimizer, 
-                num_epochs: int = 10,
-                use_lr_scheduler: bool = True
+def train_model(
+                args: dict = None
                 ):
     
+    train_loader = get_dataloader(
+        data_dir=bimsa_life_100_dir,
+        batch_size=args["dataloader"]["train_batch_size"],
+        shuffle=args["dataloader"]["train_shuffle"],
+        num_workers=args["dataloader"]["train_num_workers"],
+        split='train'
+    )
+
+    test_loader = get_dataloader(
+        data_dir=bimsa_life_100_dir,
+        batch_size=args["dataloader"]["test_batch_size"],
+        shuffle=args["dataloader"]["test_shuffle"],
+        num_workers=args["dataloader"]["test_num_workers"],
+        split='test'
+    )
+    
+        
+    # Define device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Move model to device
+    model = SimpleAutoencoder().to(device)
+
+    # Define loss function and optimizer
+    optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
+
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
     
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
-    r_ratio = 1
-    if use_lr_scheduler:
-        scheduler = optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.15, step_size_up=50, step_size_down=10)
+    r_ratio = args["training"]["r_ratio_start"]
+    
+    
+    match args["lr_scheduler"]["name"]:
+        case None:
+            use_lr_scheduler = False
+        case _:
+            scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch+1}/{num_epochs}")
+    for epoch in range(epochs:=args["training"]["epochs"]):
+        print(f"Epoch {epoch+1}/{epochs}")
         print("-" * 10)
 
         # Training phase
@@ -147,9 +161,9 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                        "regularization_loss": l_loss.item(),
                        "r_ratio": r_ratio
                        })
-            
-            r_ratio = max(1e-3, r_ratio * (1 - 1e-6))  # Decrease r_ratio over epochs
-            # Backward pass and optimization    
+
+            r_ratio = max(args["training"]["r_ratio_min"], r_ratio * (1 - args["training"]["r_ratio_decay"]))  # Decrease r_ratio over epochs
+            # Backward pass and optimization
             loss.backward()
             
             # apply gradient clipping
@@ -213,7 +227,7 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
 
         with torch.no_grad():
             criterion = nn.CrossEntropyLoss() 
-            for idx, (inputs, labels) in tqdm(enumerate(val_loader)):
+            for idx, (inputs, labels) in tqdm(enumerate(test_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 outputs, *_ = model(inputs)
@@ -244,39 +258,23 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                                                                 "n c h w -> c h (n w)").cpu()),
                         })
         
-        val_epoch_loss = val_loss / len(val_loader)
+        val_epoch_loss = val_loss / len(test_loader)
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
         
         wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
 
-train_loader = get_dataloader(
-    data_dir=bimsa_life_100_dir,
-    batch_size=8,
-    shuffle=True,
-    num_workers=0,
-    split='train'
-)
-
-test_loader = get_dataloader(
-    data_dir=bimsa_life_100_dir,
-    batch_size=2,
-    shuffle=False,
-    num_workers=0,
-    split='test'
-)
-
 if __name__ == "__main__":
     # reads the command line arguments
-    args = argparse.ArgumentParser(description="Train the Predictor Life model")
-    args.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life/hyperparams/baseline.toml", help="Path to hyperparameters file")
-    args = args.parse_args()
+    in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life/hyperparams/baseline.toml", help="Path to hyperparameters file")
+    in_profile_args = in_profile.parse_args()
 
-    args_dict = toml.load(args.hyperparameters)
-    
+    args_dict = toml.load(in_profile_args.hyperparameters)
+
     print("Starting training...")
     # Call the training function
     
     wandb.init(project="predictor_life")  # Replace with your WandB entity name
     
-    train_model(model, train_loader, test_loader, None, optimizer, num_epochs=10)
+    train_model(args_dict)

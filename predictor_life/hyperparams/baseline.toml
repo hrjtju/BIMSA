@@ -1,25 +1,30 @@
-[dataloader]
-    [train]
-    batch_size = 32
-    num_workers = 4
-    shuffle = true
+info = "Baseline model with default hyperparameters"
 
-    [test]
-    batch_size = 32
-    num_workers = 4
-    shuffle = false
+[dataloader]
+train_batch_size = 32
+train_num_workers = 4
+train_shuffle = true
+test_batch_size = 32
+test_num_workers = 4
+test_shuffle = false
 
 [optimizer]
-type = "AdamW"
-lr = 1e-5
+name = "AdamW"
+    [optimizer.args]
+    lr = 0.001
+    weight_decay = 1e-5
 
 [lr_scheduler]
-type = "CosineAnnealingLR"
-    [kwargs]
-    T_max = 100
-    eta_min = 1e-6
+name = "CyclicLR"
+    [lr_scheduler.args]
+    base_lr=0.01
+    max_lr=0.15
+    step_size_up=50
+    step_size_down=10
 
 [training]
 epochs = 10
-
+r_ratio_start = 1
+r_ratio_decay = 1e-5
+r_ratio_min = 0.01
 
