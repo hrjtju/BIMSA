@@ -110,6 +110,7 @@ def train_model(
         case None:
             use_lr_scheduler = False
         case _:
+            use_lr_scheduler = True
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
     for epoch in range(epochs:=args["training"]["epochs"]):
