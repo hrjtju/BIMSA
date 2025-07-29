@@ -171,7 +171,6 @@ def train_model(model: Callable[[Float[Array, "batch 1 w h"]],
                 
             running_loss += loss.item()
             predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
-            total += labels.view(-1).size(0)
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
