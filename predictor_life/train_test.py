@@ -277,4 +277,11 @@ if __name__ == "__main__":
     
     wandb.init(project="predictor_life")  # Replace with your WandB entity name
     
+    
+    if args_dict["wandb"]["turn_on"]:
+        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
+    else:
+        wandb.init(mode="disabled")
+
+    
     train_model(args_dict)
