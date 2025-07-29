@@ -23,6 +23,7 @@ from jaxtyping import Float, Array
 import os 
 
 bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
+os.path.append("./predictor_life/hyperparams/")
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
