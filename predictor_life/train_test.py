@@ -28,7 +28,7 @@ bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/data
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
 
-def apply_translation(grid: Tensor) -> Tensor:
+def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
     """
     Applies a spatial translation to the grid
     
@@ -38,12 +38,17 @@ def apply_translation(grid: Tensor) -> Tensor:
     Returns:
         Tensor: Translated grid.
     """
+    result = []
     N = grid.shape[-1]
     i, j = np.random.randint(0, N, size=2)
-    translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
-    return translated_grid
+    
+    for grid in grids:
+        translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
+        result.append(translated_grid)
+        
+    return tuple(result)
 
-def apply_rotation(grid: Tensor) -> Tensor:
+def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
     """
     Applies a rotation to the grid.
     
@@ -54,18 +59,20 @@ def apply_rotation(grid: Tensor) -> Tensor:
     Returns:
         Tensor: Rotated grid.
     """
-    
+    result = []
     angle = np.random.choice([90, 180, 270])  # Randomly choose an angle
     
-    # Rotate the grid using PyTorch's tensor operations
-    if angle == 90:
-        rotated_grid = grid.transpose(-2, -1).flip(-1)
-    elif angle == 180:
-        rotated_grid = grid.flip(-2).flip(-1)
-    elif angle == 270:
-        rotated_grid = grid.transpose(-2, -1).flip(-2)
-    
-    return rotated_grid
+    for grid in grids:
+        # Rotate the grid using PyTorch's tensor operations
+        if angle == 90:
+            rotated_grid = grid.transpose(-2, -1).flip(-1)
+        elif angle == 180:
+            rotated_grid = grid.flip(-2).flip(-1)
+        elif angle == 270:
+            rotated_grid = grid.transpose(-2, -1).flip(-2)
+        result.append(rotated_grid)
+        
+    return tuple(result)
 
 # Training function
 def train_model(
@@ -105,7 +112,6 @@ def train_model(
     
     r_ratio = args["training"]["r_ratio_start"]
     
-    
     match args["lr_scheduler"]["name"]:
         case None:
             use_lr_scheduler = False
@@ -131,9 +137,10 @@ def train_model(
 
             # Forward pass
             inputs_o, labels_o = inputs.clone(), labels.clone()
-            inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
-            inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
+            inputs_t, labels_t = apply_translation(inputs_o, labels_o)
+            inputs_r, labels_r = apply_rotation(inputs_o, labels_o)
             
+            # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
             inputs, labels = x.to(device), y.to(device)
             
