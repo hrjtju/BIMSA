@@ -20,15 +20,15 @@ name = "AdamW"
     [optimizer.args]
     # Parameters for AdamW optimizer
     lr = 0.001
-    weight_decay = 1e-5
+    # weight_decay = 1e-5
 
 # Learning Rate Scheduler
 [lr_scheduler]
 name = "CyclicLR"
     [lr_scheduler.args]
     # Parameters for CyclicLR scheduler
-    base_lr=0.01
-    max_lr=0.15
+    base_lr=0.001
+    max_lr=0.05
     step_size_up=50
     step_size_down=10
 

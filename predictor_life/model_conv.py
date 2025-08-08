@@ -81,6 +81,16 @@ class SimpleAutoencoder(nn.Module):
     def reconstruct(self, x):
         return self.decoder(self.encoder(x))
 
+# class SimpleConvNet(nn.Module):
+#     def __init__(self):
+#         super(SimpleConvNet, self).__init__()
+#         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+#         self.conv2 = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1)
+#         self.relu = nn.ReLU()
+#       
+#     def foward(self, x):
+#         ...
+
 # 测试网络
 if __name__ == "__main__":
     model = SimpleAutoencoder()
