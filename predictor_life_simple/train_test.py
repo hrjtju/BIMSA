@@ -83,12 +83,12 @@ def show_image_grid(inputs: Float[Array, "batch 2 w h"], labels: Float[Array, "b
     
     x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
     x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
     y_t2: Float[Array, "w h"] = pad(labels[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
     xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
     xp_t1: Float[Array, "w h"] = pad(outputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
     
-    image_grid = rearrange([x_t0, x_t1, y_t1, y_t2, xp_t0, xp_t1], 
+    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1, xp_t1, y_t2], 
                            "(b1 b2) w h -> 1 (b1 w) (b2 h)",
                            b1 = 2, b2 = 3
                            ).cpu()
