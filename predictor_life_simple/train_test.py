@@ -79,12 +79,14 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
 
 def show_image_grid(inputs: Float[Array, "batch 2 w h"], labels: Float[Array, "batch 2 w h"], outputs: Tensor) -> Tensor:
     
-    x_t0: Float[Array, "w h"] = pad(inputs[0, 0].cpu(), (2, 2, 2, 2), value=128)
-    x_t1: Float[Array, "w h"] = pad(inputs[0, 1].cpu(), (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels[0, 1].cpu(), (2, 2, 2, 2), value=128)
-    y_t2: Float[Array, "w h"] = pad(labels[0, 1].cpu(), (2, 2, 2, 2), value=128)
-    xp_t0: Float[Array, "w h"] = pad(outputs[0, 0].cpu(), (2, 2, 2, 2), value=128)
-    xp_t1: Float[Array, "w h"] = pad(outputs[0, 1].cpu(), (2, 2, 2, 2), value=128)
+    random_index = np.random.randint(0, inputs.shape[0])
+    
+    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
+    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
+    y_t2: Float[Array, "w h"] = pad(labels[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
+    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
+    xp_t1: Float[Array, "w h"] = pad(outputs[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
     
     image_grid = rearrange([x_t0, x_t1, y_t1, y_t2, xp_t0, xp_t1], 
                            "(b1 b2) w h -> 1 (b1 w) (b2 h)",
@@ -277,8 +279,8 @@ if __name__ == "__main__":
     # Call the training function
     
     if args_dict["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
-        # wandb.init(project="predictor_life", mode="disabled")
+        # wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
+        wandb.init(project="predictor_life", mode="disabled")
     else:
         wandb.init(mode="disabled")
 
