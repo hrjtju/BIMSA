@@ -243,12 +243,6 @@ def train_model(
                 output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
                 output_t = torch.stack([output_f, n_output_f], dim=-1)
                 
-                bs, ch, *_ = outputs.shape
-                loss = criterion(output_t, 
-                                 onehot_fn(labels.to(device).reshape(-1).long()).float())
-
-                val_loss += loss.item()
-                
                 # TODO: Check.
                 predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
                 val_total += labels.numel()
@@ -264,11 +258,10 @@ def train_model(
                             "test_sample": wandb.Image(image_grid),
                         })
         
-        val_epoch_loss = val_loss / len(test_loader)
         val_epoch_acc = 100. * val_correct / val_total
-        print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
+        print(f"Acc: {val_epoch_acc:.2f}%")
         
-        wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
+        wandb.log({"val_epoch_acc": val_epoch_acc})
 
 if __name__ == "__main__":
     # reads the command line arguments
