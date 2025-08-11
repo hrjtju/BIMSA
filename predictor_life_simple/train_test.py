@@ -9,12 +9,12 @@ from tqdm import tqdm
 import wandb
 from dataloader import get_dataloader
 from model_conv import SimpleCNN
-from args import Args
+from torchvision.utils import make_grid
+
 
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import Optimizer
-from torch.utils.data import DataLoader
+from torch.nn.functional import pad
 from torch.nn.functional import softmax, cross_entropy
 
 from einops import rearrange, reduce
@@ -77,6 +77,23 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
         
     return tuple(result)
 
+def show_image_grid(inputs: Float[Array, "batch 2 w h"], labels: Float[Array, "batch 2 w h"], outputs: Tensor) -> Tensor:
+    
+    x_t0: Float[Array, "w h"] = pad(inputs[0, 0].cpu(), (2, 2, 2, 2), value=128)
+    x_t1: Float[Array, "w h"] = pad(inputs[0, 1].cpu(), (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels[0, 1].cpu(), (2, 2, 2, 2), value=128)
+    y_t2: Float[Array, "w h"] = pad(labels[0, 1].cpu(), (2, 2, 2, 2), value=128)
+    xp_t0: Float[Array, "w h"] = pad(outputs[0, 0].cpu(), (2, 2, 2, 2), value=128)
+    xp_t1: Float[Array, "w h"] = pad(outputs[0, 1].cpu(), (2, 2, 2, 2), value=128)
+    
+    image_grid = rearrange([x_t0, x_t1, y_t1, y_t2, xp_t0, xp_t1], 
+                           "(b1 b2) w h -> 1 (b1 w) (b2 h)",
+                           b1 = 2, b2 = 3
+                           ).cpu()
+    
+    return image_grid
+                
+
 # Training function
 def train_model(
                 args: dict = None
@@ -111,12 +128,10 @@ def train_model(
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
 
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
-    one_hot = lambda x: onehot_fn(x.reshape(-1).long()).float()
+    one_hot_target = lambda x: onehot_fn(x.reshape(-1).long()).float()
     
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
-    
-    r_ratio = args["training"]["r_ratio_start"]
     
     match args["lr_scheduler"]["name"]:
         case None:
@@ -150,33 +165,20 @@ def train_model(
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
             inputs, labels = x.to(device), y.to(device)
             
-            outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
+            outputs, n_output = model(inputs.to(device))
+            
+            output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
+            output_t = torch.stack([output_f, n_output_f], dim=-1)
             
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
-            d_loss = cross_entropy(one_hot(outputs), one_hot(labels.to(device)), weight=labels.numel() \
+            d_loss = cross_entropy(output_t, one_hot_target(labels.to(device)), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
-
-            # Reconstruction Loss
-            input_class_num = [(dead_r:=(inputs == 0).sum()), labels.numel() - dead_r]
-            r_loss = cross_entropy(one_hot(r_inputs), one_hot(inputs.to(device)), weight=labels.numel() \
-                / torch.tensor(input_class_num, dtype=torch.float32).to(device))
             
-            # # Regularization Loss
-            l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
-            
-            # Total Loss
-            loss = (1 - r_ratio) * d_loss + r_ratio * r_loss + 1e-8 * l_loss
-            wandb.log({"total_loss": loss.item(),
-                       "dynamics_loss": d_loss.item(),
-                       "reconstruction_loss": r_loss.item(),
-                       "regularization_loss": l_loss.item(),
-                       "r_ratio": r_ratio
+            wandb.log({"total_loss": d_loss.item(),
                        })
 
-            r_ratio = max(args["training"]["r_ratio_min"], r_ratio * (1 - args["training"]["r_ratio_decay"]))  # Decrease r_ratio over epochs
-            # Backward pass and optimization
-            loss.backward()
+            d_loss.backward()
             
             # apply gradient clipping
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -188,14 +190,8 @@ def train_model(
             optimizer.step()
             if use_lr_scheduler:
                 scheduler.step()
-
-            # Statistics
-
-                # _, predicted = outputs.argmax(1, keepdims=True)
-                # val_total += labels.view(-1).size(0)
-                # val_correct += predicted.eq(labels).sum().item()
                 
-            running_loss += loss.item()
+            running_loss += d_loss.item()
             predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
@@ -203,17 +199,12 @@ def train_model(
             wandb.log({"item_acc": item_correct / labels.numel() * 100})
             
             if idx % 100 == 0:
-                    sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
-                    
-                    # construct image grid for wandb
-                    img_output = outputs[sample_idx, 1][None, ...].cpu()
-                    labels_output = labels[sample_idx].cpu()
-                    predicted_output = predicted[sample_idx].cpu()
-                    
-                    wandb.log({
-                        "train_sample": wandb.Image(rearrange([labels_output, img_output, predicted_output],
-                                                              "n c h w -> c h (n w)").cpu()),
-                    })
+                
+                image_grid = show_image_grid(inputs, labels, outputs)
+                
+                wandb.log({
+                    "train_sample": wandb.Image(image_grid),
+                })
         
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
@@ -242,9 +233,13 @@ def train_model(
             for idx, (inputs, labels) in tqdm(enumerate(test_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs, *_ = model(inputs)
+                outputs, n_output = model(inputs)
+                
+                output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
+                output_t = torch.stack([output_f, n_output_f], dim=-1)
+                
                 bs, ch, *_ = outputs.shape
-                loss = criterion(one_hot(outputs), 
+                loss = criterion(output_t, 
                                  onehot_fn(labels.to(device).reshape(-1).long()).float())
 
                 val_loss += loss.item()
@@ -257,16 +252,11 @@ def train_model(
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
                 
                 if idx % 100 == 0:
-                        sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
-                        
-                        # construct image grid for wandb
-                        img_output = outputs[sample_idx, 1][None, ...].cpu()
-                        labels_output = labels[sample_idx].cpu()
-                        predicted_output = predicted[sample_idx].cpu()
+                    
+                        image_grid = show_image_grid(inputs, labels, outputs)
                         
                         wandb.log({
-                            "test_sample": wandb.Image(rearrange([img_output, labels_output, predicted_output], 
-                                                                "n c h w -> c h (n w)").cpu()),
+                            "test_sample": wandb.Image(image_grid),
                         })
         
         val_epoch_loss = val_loss / len(test_loader)
@@ -286,12 +276,9 @@ if __name__ == "__main__":
     print("Starting training...")
     # Call the training function
     
-    # wandb.init(project="predictor_life")  # Replace with your WandB entity name
-    
-    
     if args_dict["wandb"]["turn_on"]:
-        # wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
-        wandb.init(project="predictor_life", mode="disabled")
+        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
+        # wandb.init(project="predictor_life", mode="disabled")
     else:
         wandb.init(mode="disabled")
 

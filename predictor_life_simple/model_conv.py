@@ -12,12 +12,13 @@ class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
         
-        self.conv = nn.Conv2d(2, 32, kernel_size=3, stride=1, padding=-1)
+        self.conv = nn.Conv2d(2, 32, kernel_size=3, stride=1, padding=1, padding_mode="circular")
         self.act = nn.ReLU()
-        self.conv2 = nn.Conv2d(32, 2, kernel_size=3, stride=1, padding=-1)
+        self.conv2 = nn.Conv2d(32, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
 
-    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]:
         x = self.conv(x)
         x = self.act(x)
         x = self.conv2(x)
-        return sigmoid(x)
+        x = sigmoid(x)
+        return x, 1-x
