@@ -77,7 +77,10 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
         
     return tuple(result)
 
-def show_image_grid(inputs: Float[Array, "batch 2 w h"], labels: Float[Array, "batch 2 w h"], outputs: Tensor) -> Tensor:
+def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"], 
+                    labels: Tensor|Float[Array, "batch 2 w h"], 
+                    outputs: Tensor|Float[Array, "batch 2 w h"]) -> Tensor:
+
     
     random_index = np.random.randint(0, inputs.shape[0])
     
@@ -194,7 +197,7 @@ def train_model(
                 scheduler.step()
                 
             running_loss += d_loss.item()
-            predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
+            predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
@@ -202,7 +205,7 @@ def train_model(
             
             if idx % 100 == 0:
                 
-                image_grid = show_image_grid(inputs, labels, outputs)
+                image_grid = show_image_grid(inputs, labels, 1-outputs)
                 
                 wandb.log({
                     "train_sample": wandb.Image(image_grid),
@@ -247,7 +250,7 @@ def train_model(
                 val_loss += loss.item()
                 
                 # TODO: Check.
-                predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
+                predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
         
@@ -255,7 +258,7 @@ def train_model(
                 
                 if idx % 100 == 0:
                     
-                        image_grid = show_image_grid(inputs, labels, outputs)
+                        image_grid = show_image_grid(inputs, labels, 1-outputs)
                         
                         wandb.log({
                             "test_sample": wandb.Image(image_grid),
