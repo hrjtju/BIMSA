@@ -279,8 +279,8 @@ if __name__ == "__main__":
     # Call the training function
     
     if args_dict["wandb"]["turn_on"]:
-        # wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
-        wandb.init(project="predictor_life", mode="disabled")
+        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
+        # wandb.init(project="predictor_life", mode="disabled")
     else:
         wandb.init(mode="disabled")
 
