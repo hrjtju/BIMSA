@@ -33,7 +33,7 @@ name = "CyclicLR"
     step_size_down=10
 
 [model]
-name = "SimpleCNN"
+name = "SimpleCNN3Res"
 
 # Training parameters
 [training]

@@ -8,7 +8,7 @@ from torch import Tensor
 from tqdm import tqdm
 import wandb
 from dataloader import get_dataloader
-from model_conv import SimpleCNN
+import model_conv
 from torchvision.utils import make_grid
 
 
@@ -124,7 +124,7 @@ def train_model(
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model_class = SimpleCNN
+    model_class = getattr(model_conv, args["model"]["name"])
     
     # Move model to device
     model = model_class().to(device)
