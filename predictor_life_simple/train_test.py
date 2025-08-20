@@ -266,7 +266,7 @@ def train_model(
 if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life/hyperparams/baseline.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
     in_profile_args = in_profile.parse_args()
 
     args_dict = toml.load(in_profile_args.hyperparameters)
@@ -275,8 +275,7 @@ if __name__ == "__main__":
     # Call the training function
     
     if args_dict["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
-        # wandb.init(project="predictor_life", mode="disabled")
+        wandb.init(project="predictor_life_simple", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
     else:
         wandb.init(mode="disabled")
 
