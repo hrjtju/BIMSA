@@ -36,8 +36,8 @@ class SimpleCNN3Res(nn.Module):
         self.conv3 = nn.Conv2d(32, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
 
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]:
-        x = self.act(self.conv(x))
-        x = self.act(self.conv2(x))
-        x = self.act(self.conv3(x))
-        x = sigmoid(x)
-        return x, 1-x
+        y = self.act(self.conv(x))
+        y = self.act(self.conv2(y))
+        y = self.act(self.conv3(y)) + x
+        y = sigmoid(y)
+        return y, 1-y
