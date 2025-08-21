@@ -1,4 +1,5 @@
 import argparse
+import datetime
 from functools import partial
 from typing import Any, Callable, Iterable, Tuple
 import numpy as np
@@ -139,7 +140,7 @@ def train_model(
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
     match args["lr_scheduler"]["name"]:
-        case None:
+        case "None":
             use_lr_scheduler = False
         case _:
             use_lr_scheduler = True
@@ -180,6 +181,7 @@ def train_model(
             d_loss = cross_entropy(output_t, one_hot_target(labels.to(device)), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
             
+            print(f"| {datetime.datetime.now()} | loss {d_loss.item()} |")
             wandb.log({"total_loss": d_loss.item(),
                        })
 
@@ -266,16 +268,17 @@ def train_model(
 if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/1_3_layer_res.toml", help="Path to hyperparameters file")
     in_profile_args = in_profile.parse_args()
 
+    print(in_profile_args.hyperparameters, end='\n\n')
     args_dict = toml.load(in_profile_args.hyperparameters)
 
     print("Starting training...")
     # Call the training function
     
     if args_dict["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
+        wandb.init(project="predictor_life_simple", name=args_dict["wandb"]["entity"])
     else:
         wandb.init(mode="disabled")
 

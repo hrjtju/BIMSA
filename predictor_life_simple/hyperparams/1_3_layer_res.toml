@@ -1,4 +1,4 @@
-info = "Baseline model with default hyperparameters"
+info = "Baseline with 3 layers and one residual connection"
 
 [wandb]
 turn_on = true
@@ -6,7 +6,7 @@ entity = "baseline_model"
 
 [dataloader]
 # Training DataLoader
-train_batch_size = 32
+train_batch_size = 64
 train_num_workers = 4
 train_shuffle = true
 # Validation DataLoader
@@ -16,7 +16,7 @@ test_shuffle = false
 
 # Optimizer
 [optimizer]
-name = "AdamW"
+name = "Adam"
     [optimizer.args]
     # Parameters for AdamW optimizer
     lr = 0.001
@@ -24,13 +24,13 @@ name = "AdamW"
 
 # Learning Rate Scheduler
 [lr_scheduler]
-name = "CyclicLR"
-    [lr_scheduler.args]
-    # Parameters for CyclicLR scheduler
-    base_lr=0.001
-    max_lr=0.05
-    step_size_up=50
-    step_size_down=10
+name = "None" # "CyclicLR"
+    # [lr_scheduler.args]
+    # # Parameters for CyclicLR scheduler
+    # base_lr=0.001
+    # max_lr=0.005
+    # step_size_up=50
+    # step_size_down=10
 
 [model]
 name = "SimpleCNN3Res"
