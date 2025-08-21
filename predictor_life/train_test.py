@@ -39,7 +39,7 @@ def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
         Tensor: Translated grid.
     """
     result = []
-    N = grid.shape[-1]
+    N = grids[0].shape[-1]
     i, j = np.random.randint(0, N, size=2)
     
     for grid in grids:
