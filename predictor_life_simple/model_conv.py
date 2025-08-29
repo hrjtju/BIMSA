@@ -6,22 +6,26 @@ from einops import rearrange, reduce
 from jaxtyping import Float, Array
 
 class SimpleCNN(nn.Module):
-    
-    __version__ = '0.1.0'
-    
+    __version__ = '0.2.0'
+
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        
-        self.conv = nn.Conv2d(2, 32, kernel_size=3, stride=1, padding=1, padding_mode="circular")
-        self.act = nn.ReLU()
-        self.conv2 = nn.Conv2d(32, 2, kernel_size=1, stride=1)
+        self.conv1 = nn.Conv2d(2, 32, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        self.bn1 = nn.BatchNorm2d(32)
+        self.act1 = nn.ReLU()
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        self.bn2 = nn.BatchNorm2d(32)
+        self.act2 = nn.ReLU()
+        self.conv3 = nn.Conv2d(32, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        # 可选：self.bn3 = nn.BatchNorm2d(2)
 
-    def forward(self, x: Float[Array, "batch 2 w h"]) -> Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]:
-        x = self.conv(x)
-        x = self.act(x)
-        x = self.conv2(x)
-        x = sigmoid(x)
-        return x, 1-x
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+        x = self.act1(self.bn1(self.conv1(x)))
+        x = self.act2(self.bn2(self.conv2(x)))
+        x = self.conv3(x)
+        # 如果用于分类，建议不加 sigmoid
+        # x = torch.sigmoid(x)
+        return x
 
 class SimpleCNN3Res(nn.Module):
     
