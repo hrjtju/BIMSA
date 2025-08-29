@@ -24,6 +24,7 @@ from jaxtyping import Float, Array
 import os 
 
 bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
+os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 # os.path.append("./predictor_life/hyperparams/")
 
 # Assuming dataloader and model_conv are already defined
@@ -86,7 +87,8 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
     
     if labels.shape[1] == 1:
         labels_ = labels.repeat(1, 2, 1, 1)
-
+    elif len(labels.shape) == 3:
+        labels_ = labels.unsqueeze(1)
     else:
         labels_ = labels
     
@@ -94,16 +96,14 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
     
     random_index = np.random.randint(0, inputs.shape[0])
     
-    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels_[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t2: Float[Array, "w h"] = pad(labels_[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    xp_t1: Float[Array, "w h"] = pad(outputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
+    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
+    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels_[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
+    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
     
-    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1, xp_t1, y_t2], 
+    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1], 
                            "(b1 b2) w h -> 1 (b1 w) (b2 h)",
-                           b1 = 2, b2 = 3
+                           b1=2, b2=2
                            ).cpu()
     
     return image_grid
@@ -179,16 +179,14 @@ def train_model(
             # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
             inputs: Float[Array, "batch 2 w h"] = x.to(device)
-            labels: Float[Array, "batch 1 w h"] = y[:, 1:, ...].to(device)
+            labels: Float[Array, "batch 1 w h"] = y.to(device)
             
-            outputs, n_output = model(inputs.to(device))
-            
-            output_f, n_output_f = outputs[:, 1:, ...].reshape(-1), n_output[:, 1:, ...].reshape(-1)
-            output_t = torch.stack([output_f, n_output_f], dim=-1)
+            outputs = model(inputs.to(device))
+            outputs_logits = rearrange(outputs, "b c w h -> (b w h) c")
             
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
-            d_loss = cross_entropy(output_t, one_hot_target(labels.to(device)), weight=labels.numel() \
+            d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
 
             wandb.log({"total_loss": d_loss.item(),})
@@ -207,15 +205,18 @@ def train_model(
                 scheduler.step()
                 
             running_loss += d_loss.item()
-            predicted: Float[Array, "batch 1 w h"] = (outputs[:, 1:, ...] > 0.5).long()
+            predicted: Float[Array, "batch 1 w h"] = (outputs.argmax(dim=1)).long()
             total += labels.numel()
+            
+            # print(f"Predicted: {predicted.shape}, Labels: {labels.shape}")
+            
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
             wandb.log({"item_acc": (item_acc:=(item_correct / labels.numel() * 100))})
             
             if idx % 100 == 0:
                 
-                image_grid = show_image_grid(inputs, labels, 1-outputs)
+                image_grid = show_image_grid(inputs, labels, outputs)
                 
                 wandb.log({
                     "train_sample": wandb.Image(image_grid),
@@ -223,8 +224,8 @@ def train_model(
         
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
-            if idx % 100 == 0:
-                print(f"| {datetime.datetime.now()} | {idx:^4d} | loss: {running_loss/(idx+1):.3f} "
+            if idx % 10 == 0:
+                print(f"| {datetime.datetime.now()} | Idx: {idx:^4d} | loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
 
