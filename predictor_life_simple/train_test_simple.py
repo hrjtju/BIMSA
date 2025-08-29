@@ -1,5 +1,4 @@
 import argparse
-import datetime
 from functools import partial
 from typing import Any, Callable, Iterable, Tuple
 import numpy as np
@@ -9,13 +8,13 @@ from torch import Tensor
 from tqdm import tqdm
 import wandb
 from dataloader import get_dataloader
-import model_conv
-from torchvision.utils import make_grid
-
+from model_conv import SimpleAutoencoder
+from args import Args
 
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn.functional import pad
+from torch.optim import Optimizer
+from torch.utils.data import DataLoader
 from torch.nn.functional import softmax, cross_entropy
 
 from einops import rearrange, reduce
@@ -29,7 +28,7 @@ bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/data
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
 
-def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
+def apply_translation(grid: Tensor) -> Tensor:
     """
     Applies a spatial translation to the grid
     
@@ -39,18 +38,12 @@ def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
     Returns:
         Tensor: Translated grid.
     """
-    result = []
-    
-    N = grids[0].shape[-1]
+    N = grid.shape[-1]
     i, j = np.random.randint(0, N, size=2)
-    
-    for grid in grids:
-        translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
-        result.append(translated_grid)
-        
-    return tuple(result)
+    translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
+    return translated_grid
 
-def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
+def apply_rotation(grid: Tensor) -> Tensor:
     """
     Applies a rotation to the grid.
     
@@ -61,51 +54,25 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
     Returns:
         Tensor: Rotated grid.
     """
-    result = []
-    angle = np.random.choice([0, 90, 180, 270])  # Randomly choose an angle
     
-    for grid in grids:
-        # Rotate the grid using PyTorch's tensor operations
-        if angle == 0:
-            rotated_grid = grid
-        elif angle == 90:
-            rotated_grid = grid.transpose(-2, -1).flip(-1)
-        elif angle == 180:
-            rotated_grid = grid.flip(-2).flip(-1)
-        elif angle == 270:
-            rotated_grid = grid.transpose(-2, -1).flip(-2)
-        result.append(rotated_grid)
-        
-    return tuple(result)
-
-def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"], 
-                    labels: Tensor|Float[Array, "batch 2 w h"], 
-                    outputs: Tensor|Float[Array, "batch 2 w h"]) -> Tensor:
-
+    angle = np.random.choice([90, 180, 270])  # Randomly choose an angle
     
-    random_index = np.random.randint(0, inputs.shape[0])
+    # Rotate the grid using PyTorch's tensor operations
+    if angle == 90:
+        rotated_grid = grid.transpose(-2, -1).flip(-1)
+    elif angle == 180:
+        rotated_grid = grid.flip(-2).flip(-1)
+    elif angle == 270:
+        rotated_grid = grid.transpose(-2, -1).flip(-2)
     
-    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t2: Float[Array, "w h"] = pad(labels[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    xp_t1: Float[Array, "w h"] = pad(outputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    
-    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1, xp_t1, y_t2], 
-                           "(b1 b2) w h -> 1 (b1 w) (b2 h)",
-                           b1 = 2, b2 = 3
-                           ).cpu()
-    
-    return image_grid
-                
+    return rotated_grid
 
 # Training function
 def train_model(
                 args: dict = None
                 ):
     
-    train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
+    train_loader = get_dataloader(
         data_dir=bimsa_life_100_dir,
         batch_size=args["dataloader"]["train_batch_size"],
         shuffle=args["dataloader"]["train_shuffle"],
@@ -113,7 +80,7 @@ def train_model(
         split='train'
     )
 
-    test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
+    test_loader = get_dataloader(
         data_dir=bimsa_life_100_dir,
         batch_size=args["dataloader"]["test_batch_size"],
         shuffle=args["dataloader"]["test_shuffle"],
@@ -125,22 +92,22 @@ def train_model(
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model_class = getattr(model_conv, args["model"]["name"])
-    
     # Move model to device
-    model = model_class().to(device)
+    model = SimpleAutoencoder().to(device)
 
     # Define loss function and optimizer
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
 
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
-    one_hot_target = lambda x: onehot_fn(x.reshape(-1).long()).float()
     
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
+    r_ratio = args["training"]["r_ratio_start"]
+    
+    
     match args["lr_scheduler"]["name"]:
-        case "None":
+        case None:
             use_lr_scheduler = False
         case _:
             use_lr_scheduler = True
@@ -164,29 +131,42 @@ def train_model(
 
             # Forward pass
             inputs_o, labels_o = inputs.clone(), labels.clone()
-            inputs_t, labels_t = apply_translation(inputs_o, labels_o)
-            inputs_r, labels_r = apply_rotation(inputs_o, labels_o)
+            inputs_t, labels_t = apply_translation(inputs_o), apply_translation(labels_o)
+            inputs_r, labels_r = apply_rotation(inputs_o), apply_rotation(labels_o)
             
-            # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
-            inputs: Float[Array, "batch 2 w h"] = x.to(device)
-            labels: Float[Array, "batch 2 w h"] = y.to(device)
+            inputs, labels = x.to(device), y.to(device)
             
-            outputs, n_output = model(inputs.to(device))
-            
-            output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
-            output_t = torch.stack([output_f, n_output_f], dim=-1)
+            outputs, r_inputs, hidden_a, hidden_b = model(inputs.to(device))
             
             # Dynamics Loss
+            bs, ch, *_ = outputs.shape
+            output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
-            d_loss = cross_entropy(output_t, one_hot_target(labels.to(device)), weight=labels.numel() \
+            d_loss = cross_entropy(output_softmax, onehot_fn(labels.to(device).reshape(-1).long()).float(), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
+
+            # Reconstruction Loss
+            r_input_softmax = softmax(rearrange(r_inputs, "batch c w h -> (batch w h) c"), dim=-1)
+            input_class_num = [(dead_r:=(inputs == 0).sum()), labels.numel() - dead_r]
+            r_loss = cross_entropy(r_input_softmax, onehot_fn(inputs.to(device).reshape(-1).long()).float(), weight=labels.numel() \
+                / torch.tensor(input_class_num, dtype=torch.float32).to(device))
             
-            print(f"| {datetime.datetime.now()} | loss {d_loss.item()} |")
-            wandb.log({"total_loss": d_loss.item(),
+            # # Regularization Loss
+            l_loss = torch.norm(hidden_a) + torch.norm(hidden_b)
+            
+            # Total Loss
+            loss = (1 - r_ratio) * d_loss + r_ratio * r_loss + 1e-8 * l_loss
+            wandb.log({"total_loss": loss.item(),
+                       "dynamics_loss": d_loss.item(),
+                       "reconstruction_loss": r_loss.item(),
+                       "regularization_loss": l_loss.item(),
+                       "r_ratio": r_ratio
                        })
 
-            d_loss.backward()
+            r_ratio = max(args["training"]["r_ratio_min"], r_ratio * (1 - args["training"]["r_ratio_decay"]))  # Decrease r_ratio over epochs
+            # Backward pass and optimization
+            loss.backward()
             
             # apply gradient clipping
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -198,21 +178,32 @@ def train_model(
             optimizer.step()
             if use_lr_scheduler:
                 scheduler.step()
+
+            # Statistics
+
+                # _, predicted = outputs.argmax(1, keepdims=True)
+                # val_total += labels.view(-1).size(0)
+                # val_correct += predicted.eq(labels).sum().item()
                 
-            running_loss += d_loss.item()
-            predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
+            running_loss += loss.item()
+            predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
             wandb.log({"item_acc": item_correct / labels.numel() * 100})
             
             if idx % 100 == 0:
-                
-                image_grid = show_image_grid(inputs, labels, 1-outputs)
-                
-                wandb.log({
-                    "train_sample": wandb.Image(image_grid),
-                })
+                    sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
+                    
+                    # construct image grid for wandb
+                    img_output = outputs[sample_idx, 1][None, ...].cpu()
+                    labels_output = labels[sample_idx].cpu()
+                    predicted_output = predicted[sample_idx].cpu()
+                    
+                    wandb.log({
+                        "train_sample": wandb.Image(rearrange([labels_output, img_output, predicted_output],
+                                                              "n c h w -> c h (n w)").cpu()),
+                    })
         
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
@@ -223,8 +214,8 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'best_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'last_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f'best_life_UNet_{SimpleAutoencoder.__version__}.pth')
+        torch.save(model.state_dict(), f'last_life_UNet_{SimpleAutoencoder.__version__}.pth')
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
         
@@ -241,45 +232,56 @@ def train_model(
             for idx, (inputs, labels) in tqdm(enumerate(test_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs, n_output = model(inputs)
-                
-                output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
-                output_t = torch.stack([output_f, n_output_f], dim=-1)
+                outputs, *_ = model(inputs)
+                bs, ch, *_ = outputs.shape
+                output_softmax = softmax(rearrange(outputs, "batch c w h -> (batch w h) c"), dim=-1)
+                loss = criterion(output_softmax, 
+                                 onehot_fn(labels.to(device).reshape(-1).long()).float())
+
+                val_loss += loss.item()
                 
                 # TODO: Check.
-                predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
+                predicted: Float[Array, "batch 1 w h"] = outputs.argmax(1, keepdims=True)
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
         
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
                 
                 if idx % 100 == 0:
-                    
-                        image_grid = show_image_grid(inputs, labels, 1-outputs)
+                        sample_idx = torch.randint(0, inputs.shape[0], (1,)).item()
+                        
+                        # construct image grid for wandb
+                        img_output = outputs[sample_idx, 1][None, ...].cpu()
+                        labels_output = labels[sample_idx].cpu()
+                        predicted_output = predicted[sample_idx].cpu()
                         
                         wandb.log({
-                            "test_sample": wandb.Image(image_grid),
+                            "test_sample": wandb.Image(rearrange([img_output, labels_output, predicted_output], 
+                                                                "n c h w -> c h (n w)").cpu()),
                         })
         
+        val_epoch_loss = val_loss / len(test_loader)
         val_epoch_acc = 100. * val_correct / val_total
-        print(f"Acc: {val_epoch_acc:.2f}%")
+        print(f"Val Loss: {val_epoch_loss:.4f} Acc: {val_epoch_acc:.2f}%")
         
-        wandb.log({"val_epoch_acc": val_epoch_acc})
+        wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
 
 if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/1_3_layer_res.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life/hyperparams/baseline.toml", help="Path to hyperparameters file")
     in_profile_args = in_profile.parse_args()
 
-    print(in_profile_args.hyperparameters, end='\n\n')
     args_dict = toml.load(in_profile_args.hyperparameters)
 
     print("Starting training...")
     # Call the training function
     
+    wandb.init(project="predictor_life")  # Replace with your WandB entity name
+    
+    
     if args_dict["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=args_dict["wandb"]["entity"])
+        wandb.init(project="predictor_life", name=args_dict["wandb"]["entity"])  # Replace with your WandB entity name
     else:
         wandb.init(mode="disabled")
 
