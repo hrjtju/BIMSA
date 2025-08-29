@@ -160,7 +160,7 @@ def train_model(
         
         best_acc = 0.0
         
-        for idx, (inputs, labels) in tqdm(enumerate(train_loader)):
+        for idx, (inputs, labels) in enumerate(train_loader):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
