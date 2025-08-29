@@ -224,7 +224,7 @@ def train_model(
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if idx % 100 == 0:
-                print(f"| {datetime.datetime.now()} | loss: {running_loss/(idx+1):.3f} "
+                print(f"| {datetime.datetime.now()} | {idx:^4d} | loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
 
