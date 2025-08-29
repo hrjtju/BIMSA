@@ -82,6 +82,8 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
                     labels: Tensor|Float[Array, "batch 2 w h"], 
                     outputs: Tensor|Float[Array, "batch 2 w h"]) -> Tensor:
 
+    if labels.shape[1] == 1:
+        labels = torch.cat([torch.zeros_like(labels), labels], dim=1)
     
     random_index = np.random.randint(0, inputs.shape[0])
     
