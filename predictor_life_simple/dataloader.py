@@ -23,7 +23,7 @@ class LifeGameDataset(Dataset):
         x, x_1, x_2 = map(lambda x: torch.tensor(x, dtype=torch.float32), 
                           [data[t], data[t + 1], data[t + 2]])
         x = (torch.stack([x, x_1], dim=0) / 255)
-        y = (torch.stack([x_1, x_2], dim=0) / 255)
+        y = (x_2 / 255)
         return x, y
 
 def get_dataloader(data_dir, batch_size: int, shuffle: bool = True, num_workers: int = 0, split: str = 'train', split_ratio: float = 0.8):
