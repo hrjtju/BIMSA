@@ -198,7 +198,7 @@ def train_model(
                 scheduler.step()
                 
             running_loss += d_loss.item()
-            predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
+            predicted: Float[Array, "batch 1 w h"] = (outputs[:, 1, ...] > 0.5).long()
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
