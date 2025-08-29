@@ -181,10 +181,8 @@ def train_model(
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
             d_loss = cross_entropy(output_t, one_hot_target(labels.to(device)), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
-            
-            print(f"| {datetime.datetime.now()} | loss {d_loss.item()} |")
-            wandb.log({"total_loss": d_loss.item(),
-                       })
+
+            wandb.log({"total_loss": d_loss.item(),})
 
             d_loss.backward()
             
@@ -204,7 +202,7 @@ def train_model(
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
-            wandb.log({"item_acc": item_correct / labels.numel() * 100})
+            wandb.log({"item_acc": (item_acc:=(item_correct / labels.numel() * 100))})
             
             if idx % 100 == 0:
                 
@@ -216,6 +214,10 @@ def train_model(
         
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
+            if idx % 100 == 0:
+                print(f"| {datetime.datetime.now()} | loss: {running_loss.item()/idx+1:.3f} "
+                      f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
+        
 
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
