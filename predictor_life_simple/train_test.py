@@ -1,6 +1,7 @@
 import argparse
 import datetime
 from functools import partial
+from tkinter import Y
 from typing import Any, Callable, Iterable, Tuple
 import numpy as np
 import toml
@@ -11,7 +12,8 @@ import wandb
 from dataloader import get_dataloader
 import model_conv
 from torchvision.utils import make_grid
-
+import matplotlib.pyplot as plt
+import asyncio
 
 import torch.nn as nn
 import torch.optim as optim
@@ -26,6 +28,17 @@ import os
 bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
 os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 # os.path.append("./predictor_life/hyperparams/")
+
+def save_image(image_grid: Tensor, idx: int, base_dir: str):
+        plt.figure(figsize=(12, 12))
+        plt.imshow(image_grid.permute(1, 2, 0).clone().detach().cpu().numpy())
+        plt.axis("off")
+        
+        if not os.path.exists(f"result_imgs/{base_dir}"):
+            os.makedirs(f"result_imgs/{base_dir}")
+        
+        plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
+        plt.close()
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -96,12 +109,12 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
     
     random_index = np.random.randint(0, inputs.shape[0])
     
-    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
-    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu(), (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels_[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
-    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu(), (2, 2, 2, 2), value=128)
-    
-    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1], 
+    x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu() * 256, (2, 2, 2, 2), value=128)
+    x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu() * 256, (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels_[random_index, 0].cpu() * 256, (2, 2, 2, 2), value=128)
+    xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 256, (2, 2, 2, 2), value=128)
+
+    image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1],
                            "(b1 b2) w h -> 1 (b1 w) (b2 h)",
                            b1=2, b2=2
                            ).cpu()
@@ -166,6 +179,7 @@ def train_model(
         total = 0
         
         best_acc = 0.0
+        start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
         
         for idx, (inputs, labels) in enumerate(train_loader):
             # Zero the parameter gradients
@@ -189,16 +203,10 @@ def train_model(
             d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
                 / torch.tensor(output_class_num, dtype=torch.float32).to(device))
 
-            wandb.log({"total_loss": d_loss.item(),})
-
             d_loss.backward()
             
             # apply gradient clipping
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-            wandb.log({
-                       "gradient_norm": norm.item()
-            })
             
             optimizer.step()
             if use_lr_scheduler:
@@ -212,7 +220,10 @@ def train_model(
             
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
-            wandb.log({"item_acc": (item_acc:=(item_correct / labels.numel() * 100))})
+            wandb.log({"total_loss": d_loss.item(),
+                       "gradient_norm": norm.item(),
+                       "item_acc": (item_acc:=(item_correct / labels.numel() * 100))
+                       })
             
             if idx % 100 == 0:
                 
@@ -221,7 +232,13 @@ def train_model(
                 wandb.log({
                     "train_sample": wandb.Image(image_grid),
                 })
-        
+                
+                # 将 image_grid 异步存储为 matplotlib 图像
+                save_image(image_grid,
+                           idx,
+                           f"{start_time_str}_{args['wandb']['entity']}"
+                          )
+
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if idx % 10 == 0:
