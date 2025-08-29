@@ -25,7 +25,7 @@ class SimpleCNN(nn.Module):
         x = self.conv3(x)
         # 如果用于分类，建议不加 sigmoid
         # x = torch.sigmoid(x)
-        return x
+        return x, 1-x
 
 class SimpleCNN3Res(nn.Module):
     
