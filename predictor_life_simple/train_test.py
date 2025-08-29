@@ -82,7 +82,7 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
                     labels: Tensor|Float[Array, "batch 2 w h"], 
                     outputs: Tensor|Float[Array, "batch 2 w h"]) -> Tensor:
 
-    print(labels.shape, outputs.shape)
+    # print(labels.shape, outputs.shape)
     
     if labels.shape[1] == 1:
         labels_ = labels.repeat(1, 2, 1, 1)
@@ -90,7 +90,7 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
     else:
         labels_ = labels
     
-    print(labels_.shape, outputs.shape)
+    # print(labels_.shape, outputs.shape)
     
     random_index = np.random.randint(0, inputs.shape[0])
     
