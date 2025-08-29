@@ -280,7 +280,7 @@ def train_model(
 if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/1_3_layer_res.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
     in_profile_args = in_profile.parse_args()
 
     print(in_profile_args.hyperparameters, end='\n\n')
