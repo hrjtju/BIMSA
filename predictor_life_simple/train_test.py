@@ -170,11 +170,11 @@ def train_model(
             # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
             inputs: Float[Array, "batch 2 w h"] = x.to(device)
-            labels: Float[Array, "batch 2 w h"] = y.to(device)
+            labels: Float[Array, "batch 1 w h"] = y[:, 1, ...].to(device)
             
             outputs, n_output = model(inputs.to(device))
             
-            output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
+            output_f, n_output_f = outputs[:, 1, ...].reshape(-1), n_output[:, 1, ...].reshape(-1)
             output_t = torch.stack([output_f, n_output_f], dim=-1)
             
             # Dynamics Loss
