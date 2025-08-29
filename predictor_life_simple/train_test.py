@@ -82,15 +82,22 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
                     labels: Tensor|Float[Array, "batch 2 w h"], 
                     outputs: Tensor|Float[Array, "batch 2 w h"]) -> Tensor:
 
+    print(labels.shape, outputs.shape)
+    
     if labels.shape[1] == 1:
-        labels = torch.cat([torch.zeros_like(labels), labels], dim=1)
+        labels_ = labels.repeat(1, 2, 1, 1)
+
+    else:
+        labels_ = labels
+    
+    print(labels_.shape, outputs.shape)
     
     random_index = np.random.randint(0, inputs.shape[0])
     
     x_t0: Float[Array, "w h"] = pad(inputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
     x_t1: Float[Array, "w h"] = pad(inputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t1: Float[Array, "w h"] = pad(labels[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
-    y_t2: Float[Array, "w h"] = pad(labels[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
+    y_t1: Float[Array, "w h"] = pad(labels_[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
+    y_t2: Float[Array, "w h"] = pad(labels_[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
     xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 255, (2, 2, 2, 2), value=128)
     xp_t1: Float[Array, "w h"] = pad(outputs[random_index, 1].cpu() * 255, (2, 2, 2, 2), value=128)
     
@@ -172,11 +179,11 @@ def train_model(
             # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
             inputs: Float[Array, "batch 2 w h"] = x.to(device)
-            labels: Float[Array, "batch 1 w h"] = y[:, 1, ...].to(device)
+            labels: Float[Array, "batch 1 w h"] = y[:, 1:, ...].to(device)
             
             outputs, n_output = model(inputs.to(device))
             
-            output_f, n_output_f = outputs[:, 1, ...].reshape(-1), n_output[:, 1, ...].reshape(-1)
+            output_f, n_output_f = outputs[:, 1:, ...].reshape(-1), n_output[:, 1:, ...].reshape(-1)
             output_t = torch.stack([output_f, n_output_f], dim=-1)
             
             # Dynamics Loss
@@ -200,7 +207,7 @@ def train_model(
                 scheduler.step()
                 
             running_loss += d_loss.item()
-            predicted: Float[Array, "batch 1 w h"] = (outputs[:, 1, ...] > 0.5).long()
+            predicted: Float[Array, "batch 1 w h"] = (outputs[:, 1:, ...] > 0.5).long()
             total += labels.numel()
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
@@ -217,7 +224,7 @@ def train_model(
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if idx % 100 == 0:
-                print(f"| {datetime.datetime.now()} | loss: {running_loss.item()/idx+1:.3f} "
+                print(f"| {datetime.datetime.now()} | loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
 
