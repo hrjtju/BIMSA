@@ -2,6 +2,8 @@ import argparse
 import datetime
 from functools import partial
 from typing import Iterable, Tuple
+import matplotlib
+import matplotlib.axes
 import numpy as np
 import toml
 import torch
@@ -30,8 +32,15 @@ os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 
 torch2numpy = lambda x: x[0].permute(1, 2, 0).clone().detach().cpu().numpy()
 
+scalar_dict = {
+    "train_loss": [],
+    "train_acc": [],
+    "grad_norm": [],
+    "val_acc": [],
+}
+
 def save_image(inputs, labels, outputs, 
-               idx: int, base_dir: str):
+               idx: int, epoch: int, base_dir: str):
     
     if labels.shape[1] == 1:
         labels_ = labels.repeat(1, 2, 1, 1)
@@ -51,20 +60,17 @@ def save_image(inputs, labels, outputs,
     fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
     ax1.axis("off")
     ax1.imshow(x_t0, cmap='gray')
-    ax1.set_title("$x_{t}$\nSystem State at time t")
-    
+    ax1.set_title("$x_{t}$\nTrue System State at time t")
     ax2.axis("off")
     ax2.imshow(x_t1, cmap='gray')
-    ax2.set_title("$x_{t+1}$\nSystem State at time t+1")
-
+    ax2.set_title("$x_{t+1}$\nTrue System State at time t+1")
     ax3.axis("off")
     ax3.imshow(xp_t0, cmap='gray')
     ax3.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
 
     ax4.axis("off")
     ax4.imshow(y_t1, cmap='gray')
-    ax4.set_title("$x_{t+2}$\nSystem State at time t+2")
-
+    ax4.set_title("$x_{t+2}$\nTrue System State at time t+2")
     ax5.axis("off")
     ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
     ax5.set_title("$x_{t+1} - f(x_{t+1})$\nPrediction Error")
@@ -85,15 +91,52 @@ def save_image(inputs, labels, outputs,
     image = np.array(Image.open(buf))[:, :, :3]
     
     # save plotting results
-    if not os.path.exists(f"result_imgs/{base_dir}"):
-        os.makedirs(f"result_imgs/{base_dir}")
-    plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
+    if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
+        os.makedirs(f"result/predictor_life_simple/{base_dir}")
+    plt.savefig(f"result/predictor_life_simple/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
     plt.close()
     
-    with open(f"result_imgs/{base_dir}/visualization.md", 'a') as f:
+    with open(f"result/predictor_life_simple/{base_dir}/visualization.md", 'a') as f:
         f.write(f"\n![](./train_sample_{idx}.png)\n<center>Iteration {idx+1}</center>\n")
     
     return image
+
+def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
+    
+    # plot the scalar_dict values and store the figure
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+    ax1.plot(scalar_dict["train_loss"], label="train_loss")
+    ax1.legend()
+    
+    ax1.semilogy()
+    ax1.set_title("train_loss")
+    
+    ax2.plot(scalar_dict["grad_norm"], label="grad_norm")
+    ax2.legend()
+    ax2.semilogy()
+    ax2.set_title("grad_norm")
+
+    ax3.plot(scalar_dict["train_acc"], label="train_acc")
+    ax3.legend()
+    ax3.set_title("train_acc")
+    
+    ax4.plot(scalar_dict["val_acc"], label="val_acc")
+    ax4.set_title("val_acc")
+    ax4.legend()
+
+    fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
+    
+    # save plotting results
+    if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
+        os.makedirs(f"result/predictor_life_simple/{base_dir}")
+    
+    plt.close()
+
+def plot_network_analysis(model: nn.Module):
+    """
+    Plot the ALL trained weights of the CNN model.
+    """
+    
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -279,13 +322,16 @@ def train_model(
                        "gradient_norm": norm.item(),
                        "item_acc": (item_acc:=(item_correct / labels.numel() * 100))
                        })
+            scalar_dict["train_loss"].append(d_loss.item())
+            scalar_dict["train_acc"].append(item_acc)
+            scalar_dict["grad_norm"].append(norm.item())
             
             if idx % 100 == 0:
                 
                 
                 # 将 image_grid 异步存储为 matplotlib 图像
                 image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
-                           idx,
+                           idx, epoch,
                            f"{start_time_str}_{args['wandb']['entity']}"
                           )
                 
@@ -296,7 +342,8 @@ def train_model(
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if idx % 10 == 0:
-                print(f"| {datetime.datetime.now()} | Idx: {idx:^4d} | loss: {running_loss/(idx+1):.3f} "
+                print(f"| {datetime.datetime.now()} | Idx: {idx:>4d}/{len(train_loader):<6d} "
+                      f"| loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
 
@@ -306,8 +353,13 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'best_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'last_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f'./result/predictor_life_simple/'
+                       f'{start_time_str}_{args['wandb']['entity']}/'
+                       f'best_simple_life_UNet_{model_class.__version__}.pth')
+        torch.save(model.state_dict(), f'./result/predictor_life_simple/'
+                   f'{start_time_str}_{args['wandb']['entity']}/'
+                   f'last_simple_life_UNet_{model_class.__version__}.pth')
+
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
         
@@ -315,22 +367,17 @@ def train_model(
         
         # Validation phase
         model.eval()
-        val_loss = 0.0
         val_correct = 0
         val_total = 0
 
         with torch.no_grad():
-            criterion = nn.CrossEntropyLoss() 
             for idx, (inputs, labels) in tqdm(enumerate(test_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs, n_output = model(inputs)
-                
-                output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
-                output_t = torch.stack([output_f, n_output_f], dim=-1)
+                outputs = model(inputs)
                 
                 # TODO: Check.
-                predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
+                predicted: torch.Tensor|Float[Array, "batch 1 w h"] = (outputs.argmax(dim=1)).long()
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
         
@@ -338,7 +385,10 @@ def train_model(
                 
                 if idx % 100 == 0:
                     
-                        image_grid = show_image_grid(inputs, labels, 1-outputs)
+                        image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
+                           idx, epoch,
+                           f"test_{start_time_str}_{args['wandb']['entity']}"
+                          )
                         
                         wandb.log({
                             "test_sample": wandb.Image(image_grid),
@@ -346,8 +396,13 @@ def train_model(
         
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Acc: {val_epoch_acc:.2f}%")
+        scalar_dict["val_acc"].append(val_epoch_acc)
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
+    
+    plot_scalar(scalar_dict, f"{start_time_str}_{args['wandb']['entity']}")
+    # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
+
 
 if __name__ == "__main__":
     # reads the command line arguments
