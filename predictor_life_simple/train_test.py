@@ -353,12 +353,12 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'./result/predictor_life_simple/'
-                       f'{start_time_str}_{args['wandb']['entity']}/'
-                       f'best_simple_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'./result/predictor_life_simple/'
-                   f'{start_time_str}_{args['wandb']['entity']}/'
-                   f'last_simple_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f"./result/predictor_life_simple/"
+                       f"{start_time_str}_{args['wandb']['entity']}/"
+                       f"best_simple_life_UNet_{model_class.__version__}.pth")
+        torch.save(model.state_dict(), f"./result/predictor_life_simple/"
+                   f"{start_time_str}_{args['wandb']['entity']}/"
+                   f"last_simple_life_UNet_{model_class.__version__}.pth")
 
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
