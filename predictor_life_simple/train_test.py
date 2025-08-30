@@ -15,6 +15,7 @@ import model_conv
 import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
+import pandas as pd
 
 import torch.nn as nn
 import torch.optim as optim
@@ -106,23 +107,29 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     
     # plot the scalar_dict values and store the figure
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
-    ax1.plot(scalar_dict["train_loss"], label="train_loss")
+    ax1.plot(scalar_dict["train_loss"], label="train_loss", alpha=0.3)
+    ax1.plot(pd.Series(scalar_dict["train_loss"]).rolling(window=100).mean(), label="train_loss (smoothed)", alpha=0.3)
     ax1.legend()
-    
+    ax1.grid()
     ax1.semilogy()
     ax1.set_title("train_loss")
-    
-    ax2.plot(scalar_dict["grad_norm"], label="grad_norm")
+
+    ax2.plot(scalar_dict["grad_norm"], label="grad_norm", alpha=0.3)
+    ax2.plot(pd.Series(scalar_dict["grad_norm"]).rolling(window=100).mean(), label="grad_norm (smoothed)", alpha=0.3)
     ax2.legend()
     ax2.semilogy()
+    ax2.grid()
     ax2.set_title("grad_norm")
 
-    ax3.plot(scalar_dict["train_acc"], label="train_acc")
+    ax3.plot(scalar_dict["train_acc"], label="train_acc", alpha=0.3)
+    ax3.plot(pd.Series(scalar_dict["train_acc"]).rolling(window=100).mean(), label="train_acc (smoothed)", alpha=0.3)
     ax3.legend()
+    ax3.grid()
     ax3.set_title("train_acc")
     
     ax4.plot(scalar_dict["val_acc"], label="val_acc")
     ax4.set_title("val_acc")
+    ax4.grid()
     ax4.legend()
 
     fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
@@ -269,6 +276,8 @@ def train_model(
             use_lr_scheduler = True
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
+    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
+    
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
         print("-" * 10)
@@ -280,7 +289,6 @@ def train_model(
         total = 0
         
         best_acc = 0.0
-        start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
         
         for idx, (inputs, labels) in enumerate(train_loader):
             # Zero the parameter gradients
