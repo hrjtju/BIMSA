@@ -16,7 +16,7 @@ vals = [ON, OFF]
 def randomGrid(N):
 
     """returns a grid of NxN random values"""
-    return np.random.choice(vals, N*N, p=[0.3, 0.7]).reshape(N, N)
+    return np.random.choice(vals, N*N, p=[0.1, 0.9]).reshape(N, N)
 
 def addGlider(i, j, grid):
 
@@ -146,7 +146,7 @@ def main():
             
             grid = update_grid(grid, N)
 
-        np.save(f"./predictor_life/datasets/life/train_{N}_{idx}.npy", global_arr)
+        np.save(f"./predictor_life/datasets/life/train_{N}_{10+idx}.npy", global_arr)
 
         global_arr = None
     
