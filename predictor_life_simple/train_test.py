@@ -38,7 +38,7 @@ scalar_dict = {
 }
 
 def save_image(inputs, labels, outputs, 
-               idx: int, base_dir: str):
+               idx: int, epoch: int, base_dir: str):
     
     if labels.shape[1] == 1:
         labels_ = labels.repeat(1, 2, 1, 1)
@@ -58,22 +58,22 @@ def save_image(inputs, labels, outputs,
     fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
     ax1.axis("off")
     ax1.imshow(x_t0, cmap='gray')
-    ax1.set_title(r"$x_{t}$")
+    ax1.set_title("$x_{t}$\nTrue System State at time t")
     ax2.axis("off")
     ax2.imshow(x_t1, cmap='gray')
-    ax2.set_title(r"$x_{t+1}$")
+    ax2.set_title("$x_{t+1}$\nTrue System State at time t+1")
     ax3.axis("off")
     ax3.imshow(xp_t0, cmap='gray')
-    ax3.set_title(r"$f(x_{t+1})$")
+    ax3.set_title("$f(x_{t+1})$\nPredicted System State at time t+2")
     ax4.axis("off")
     ax4.imshow(y_t1, cmap='gray')
-    ax4.set_title(r"$x_{t+2}$")
+    ax4.set_title("$x_{t+2}$\nTrue System State at time t+2")
     ax5.axis("off")
     ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax5.set_title(r"$x_{t+1} - f(x_{t+1})$")
+    ax5.set_title("$x_{t+2} - f(x_{t+1})$\nPrediction Error")
     ax6.axis("off")
     ax6.imshow(x_t1 - x_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax6.set_title(r"$x_{t+1} - x_{t}$")
+    ax6.set_title("$x_{t+1} - x_{t}$\nOne-step Change")
 
     # convert plotting results to array format
     buf = BytesIO()
@@ -84,8 +84,11 @@ def save_image(inputs, labels, outputs,
     # save plotting results
     if not os.path.exists(f"result_imgs/{base_dir}"):
         os.makedirs(f"result_imgs/{base_dir}")
-    plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
+    plt.savefig(f"result_imgs/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
     plt.close()
+    
+    with open(f"result_imgs/{base_dir}/visualization.md", 'a') as f:
+        f.write(f"\n![](./train_sample_{idx}.png)\n<center>Iteration {idx+1}</center>\n")
     
     return image
 
@@ -118,6 +121,12 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
         os.makedirs(f"result_imgs/{base_dir}")
     
     plt.close()
+
+def plot_network_analysis(model: nn.Module):
+    """
+    Plot the ALL trained weights of the CNN model.
+    """
+    
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -312,7 +321,7 @@ def train_model(
                 
                 # 将 image_grid 异步存储为 matplotlib 图像
                 image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
-                           idx,
+                           idx, epoch,
                            f"{start_time_str}_{args['wandb']['entity']}"
                           )
                 
@@ -363,7 +372,7 @@ def train_model(
                 if idx % 100 == 0:
                     
                         image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
-                           idx,
+                           idx, epoch,
                            f"test_{start_time_str}_{args['wandb']['entity']}"
                           )
                         
@@ -377,6 +386,8 @@ def train_model(
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
     
+    plot_scalar(scalar_dict, f"{start_time_str}_{args['wandb']['entity']}")
+    plot_network_analysis(model, (2, 64, 64), f"{start_time_str}_{args['wandb']['entity']}")
 
 
 if __name__ == "__main__":
