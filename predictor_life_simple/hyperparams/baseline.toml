@@ -37,7 +37,7 @@ name = "SimpleCNN"
 
 # Training parameters
 [training]
-epochs = 10
+epochs = 2
 r_ratio_start = 1
 r_ratio_decay = 1e-5
 r_ratio_min = 0.01

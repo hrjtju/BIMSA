@@ -283,7 +283,8 @@ def train_model(
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if idx % 10 == 0:
-                print(f"| {datetime.datetime.now()} | Idx: {idx:^4d} | loss: {running_loss/(idx+1):.3f} "
+                print(f"| {datetime.datetime.now()} | Idx: {idx:>4d}/{len(train_loader):<6d} "
+                      f"| loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
 
@@ -293,8 +294,9 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'best_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'last_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f'best_simple_life_UNet_{model_class.__version__}.pth')
+        torch.save(model.state_dict(), f'last_simple_life_UNet_{model_class.__version__}.pth')
+
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
         
@@ -302,22 +304,17 @@ def train_model(
         
         # Validation phase
         model.eval()
-        val_loss = 0.0
         val_correct = 0
         val_total = 0
 
         with torch.no_grad():
-            criterion = nn.CrossEntropyLoss() 
             for idx, (inputs, labels) in tqdm(enumerate(test_loader)):
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                outputs, n_output = model(inputs)
-                
-                output_f, n_output_f = outputs.reshape(-1), n_output.reshape(-1)
-                output_t = torch.stack([output_f, n_output_f], dim=-1)
+                outputs = model(inputs)
                 
                 # TODO: Check.
-                predicted: Float[Array, "batch 1 w h"] = (outputs > 0.5).long()
+                predicted: torch.Tensor|Float[Array, "batch 1 w h"] = (outputs.argmax(dim=1)).long()
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
         
@@ -325,7 +322,10 @@ def train_model(
                 
                 if idx % 100 == 0:
                     
-                        image_grid = show_image_grid(inputs, labels, 1-outputs)
+                        image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
+                           idx,
+                           f"test_{start_time_str}_{args['wandb']['entity']}"
+                          )
                         
                         wandb.log({
                             "test_sample": wandb.Image(image_grid),
