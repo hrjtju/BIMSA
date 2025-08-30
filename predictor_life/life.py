@@ -1,5 +1,6 @@
 # Python code to implement Conway's Game Of Life
 import argparse
+import random
 import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.animation as animation
@@ -15,7 +16,7 @@ vals = [ON, OFF]
 def randomGrid(N):
 
     """returns a grid of NxN random values"""
-    return np.random.choice(vals, N*N, p=[0.2, 0.8]).reshape(N, N)
+    return np.random.choice(vals, N*N, p=[0.3, 0.7]).reshape(N, N)
 
 def addGlider(i, j, grid):
 
@@ -126,39 +127,28 @@ def main():
     if args.interval:
         updateInterval = int(args.interval)
 
-    # for idx in range(10):
-    #     # declare grid
-    #     grid = np.array([])
-
-    #     # check if "glider" demo flag is specified
-    #     if args.glider:
-    #         grid = np.zeros(N*N).reshape(N, N)
-    #         addGlider(1, 1, grid)
-    #     elif args.gosper:
-    #         grid = np.zeros(N*N).reshape(N, N)
-    #         addGosperGliderGun(10, 10, grid)
-
-    #     else:   # populate grid with random on/off -
-    #             # more off than on
-    #         grid = randomGrid(N)
+    for idx in range(10):
+        grid = randomGrid(N)
         
-    #     for j in range(10):
-    #         for _ in tqdm(range(int(1e3))):
-    #             if global_arr is None:
-    #                 global_arr = grid.copy()[None, ...]
-    #             else:
-    #                 global_arr = np.vstack([global_arr, grid[None, ...]])
-    #                 # print(global_arr.shape)
-                
-    #             grid = update_grid(grid, N)
+        if random.random() > 0.2:
+            for _ in range(random.randint(1, 10)):
+                addGlider(random.randint(0, N-4), random.randint(0, N-4), grid)
+        if random.random() > 0.3:
+            for _ in range(random.randint(1, 5)):
+                addGosperGliderGun(random.randint(0, N-12), random.randint(0, N-39), grid)
+        
+        for _ in tqdm(range(int(1000))):
+            if global_arr is None:
+                global_arr = grid.copy()[None, ...]
+            else:
+                global_arr = np.vstack([global_arr, grid[None, ...]])
+                # print(global_arr.shape)
             
-    #         # np.save(f"./predictor_life/datasets/life/train_{N}_{idx}_{j}.npy", global_arr)
-            
-    #         global_arr = None
-    
-    grid = np.array([])
+            grid = update_grid(grid, N)
 
-    grid = randomGrid(N)
+        np.save(f"./predictor_life/datasets/life/train_{N}_{idx}.npy", global_arr)
+
+        global_arr = None
     
     # set up animation
     fig, ax = plt.subplots()
