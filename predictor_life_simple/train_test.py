@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.functional import pad
 from torch.nn.functional import softmax, cross_entropy
+from torchinfo import summary
 
 from einops import rearrange, reduce
 from jaxtyping import Float, Array
@@ -250,6 +251,8 @@ def train_model(
     # Move model to device
     model = model_class().to(device)
 
+    summary(model, input_size=(1, 2, 100, 100), verbose=1)
+    
     # Define loss function and optimizer
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
 
