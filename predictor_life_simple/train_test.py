@@ -80,6 +80,9 @@ def save_image(inputs, labels, outputs,
     plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
     plt.close()
     
+    with open(f"result_imgs/{base_dir}/visualization.md", 'a') as f:
+        f.write(f"\n![](./train_sample_{idx}.png)\n<center>Iteration {idx+1}</center>\n")
+    
     return image
 
 # Assuming dataloader and model_conv are already defined
