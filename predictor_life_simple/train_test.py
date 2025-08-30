@@ -346,8 +346,12 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'./result/predictor_life_simple/best_simple_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'./result/predictor_life_simple/last_simple_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f'./result/predictor_life_simple/'
+                       f'{start_time_str}_{args['wandb']['entity']}/'
+                       f'best_simple_life_UNet_{model_class.__version__}.pth')
+        torch.save(model.state_dict(), f'./result/predictor_life_simple/'
+                   f'{start_time_str}_{args['wandb']['entity']}/'
+                   f'last_simple_life_UNet_{model_class.__version__}.pth')
 
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
@@ -390,7 +394,7 @@ def train_model(
         wandb.log({"val_epoch_acc": val_epoch_acc})
     
     plot_scalar(scalar_dict, f"{start_time_str}_{args['wandb']['entity']}")
-    plot_network_analysis(model, (2, 64, 64), f"{start_time_str}_{args['wandb']['entity']}")
+    # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
 
 
 if __name__ == "__main__":
