@@ -1,8 +1,7 @@
 import argparse
 import datetime
 from functools import partial
-from tkinter import Y
-from typing import Any, Callable, Iterable, Tuple
+from typing import Iterable, Tuple
 import numpy as np
 import toml
 import torch
@@ -11,9 +10,9 @@ from tqdm import tqdm
 import wandb
 from dataloader import get_dataloader
 import model_conv
-from torchvision.utils import make_grid
 import matplotlib.pyplot as plt
-import asyncio
+from io import BytesIO
+from PIL import Image
 
 import torch.nn as nn
 import torch.optim as optim
@@ -29,16 +28,59 @@ bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/data
 os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 # os.path.append("./predictor_life/hyperparams/")
 
-def save_image(image_grid: Tensor, idx: int, base_dir: str):
-        plt.figure(figsize=(12, 12))
-        plt.imshow(image_grid.permute(1, 2, 0).clone().detach().cpu().numpy())
-        plt.axis("off")
-        
-        if not os.path.exists(f"result_imgs/{base_dir}"):
-            os.makedirs(f"result_imgs/{base_dir}")
-        
-        plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
-        plt.close()
+torch2numpy = lambda x: x[0].permute(1, 2, 0).clone().detach().cpu().numpy()
+
+def save_image(inputs, labels, outputs, 
+               idx: int, base_dir: str):
+    
+    if labels.shape[1] == 1:
+        labels_ = labels.repeat(1, 2, 1, 1)
+    elif len(labels.shape) == 3:
+        labels_ = labels.unsqueeze(1)
+    else:
+        labels_ = labels
+    
+    random_index = np.random.randint(0, inputs.shape[0])
+    
+    x_t0: Float[Array, "w h"] = inputs[random_index, 0].cpu() * 256
+    x_t1: Float[Array, "w h"] = inputs[random_index, 1].cpu() * 256
+    y_t1: Float[Array, "w h"] = labels_[random_index, 0].cpu() * 256
+    xp_t0: Float[Array, "w h"] = outputs[random_index, 0].cpu() * 256
+
+    
+    fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
+    ax1.axis("off")
+    ax1.imshow(x_t0, cmap='gray')
+    ax1.set_title(r"$x_{t}$")
+    ax2.axis("off")
+    ax2.imshow(x_t1, cmap='gray')
+    ax2.set_title(r"$x_{t+1}$")
+    ax3.axis("off")
+    ax3.imshow(xp_t0, cmap='gray')
+    ax3.set_title(r"$f(x_{t+1})$")
+    ax4.axis("off")
+    ax4.imshow(y_t1, cmap='gray')
+    ax4.set_title(r"$x_{t+2}$")
+    ax5.axis("off")
+    ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
+    ax5.set_title(r"$x_{t+1} - f(x_{t+1})$")
+    ax6.axis("off")
+    ax6.imshow(x_t1 - x_t0, cmap="RdBu", vmin=-1, vmax=1)
+    ax6.set_title(r"$x_{t+1} - x_{t}$")
+
+    # convert plotting results to array format
+    buf = BytesIO()
+    fig.savefig(buf, format='png')
+    buf.seek(0)
+    image = np.array(Image.open(buf))[:, :, :3]
+    
+    # save plotting results
+    if not os.path.exists(f"result_imgs/{base_dir}"):
+        os.makedirs(f"result_imgs/{base_dir}")
+    plt.savefig(f"result_imgs/{base_dir}/train_sample_{idx}.png", bbox_inches="tight")
+    plt.close()
+    
+    return image
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -115,7 +157,7 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
     xp_t0: Float[Array, "w h"] = pad(outputs[random_index, 0].cpu() * 256, (2, 2, 2, 2), value=128)
 
     image_grid = rearrange([x_t0, xp_t0, y_t1, x_t1],
-                           "(b1 b2) w h -> 1 (b1 w) (b2 h)",
+                           "(b1 b2) w h -> 1 (b1 b2 w) h",
                            b1=2, b2=2
                            ).cpu()
     
@@ -227,17 +269,16 @@ def train_model(
             
             if idx % 100 == 0:
                 
-                image_grid = show_image_grid(inputs, labels, outputs)
+                
+                # 将 image_grid 异步存储为 matplotlib 图像
+                image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
+                           idx,
+                           f"{start_time_str}_{args['wandb']['entity']}"
+                          )
                 
                 wandb.log({
                     "train_sample": wandb.Image(image_grid),
                 })
-                
-                # 将 image_grid 异步存储为 matplotlib 图像
-                save_image(image_grid,
-                           idx,
-                           f"{start_time_str}_{args['wandb']['entity']}"
-                          )
 
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
