@@ -82,12 +82,12 @@ def save_image(inputs, labels, outputs,
     image = np.array(Image.open(buf))[:, :, :3]
     
     # save plotting results
-    if not os.path.exists(f"result_imgs/{base_dir}"):
-        os.makedirs(f"result_imgs/{base_dir}")
-    plt.savefig(f"result_imgs/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
+    if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
+        os.makedirs(f"result/predictor_life_simple/{base_dir}")
+    plt.savefig(f"result/predictor_life_simple/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
     plt.close()
     
-    with open(f"result_imgs/{base_dir}/visualization.md", 'a') as f:
+    with open(f"result/predictor_life_simple/{base_dir}/visualization.md", 'a') as f:
         f.write(f"\n![](./train_sample_{idx}.png)\n<center>Iteration {idx+1}</center>\n")
     
     return image
@@ -114,11 +114,11 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     ax4.set_title("val_acc")
     ax4.legend()
 
-    fig.savefig(f"result_imgs/{base_dir}/scalar_dict.png")
+    fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
     
     # save plotting results
-    if not os.path.exists(f"result_imgs/{base_dir}"):
-        os.makedirs(f"result_imgs/{base_dir}")
+    if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
+        os.makedirs(f"result/predictor_life_simple/{base_dir}")
     
     plt.close()
 
@@ -343,8 +343,8 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f'best_simple_life_UNet_{model_class.__version__}.pth')
-        torch.save(model.state_dict(), f'last_simple_life_UNet_{model_class.__version__}.pth')
+            torch.save(model.state_dict(), f'./result/predictor_life_simple/best_simple_life_UNet_{model_class.__version__}.pth')
+        torch.save(model.state_dict(), f'./result/predictor_life_simple/last_simple_life_UNet_{model_class.__version__}.pth')
 
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
