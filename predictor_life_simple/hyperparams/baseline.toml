@@ -6,11 +6,11 @@ entity = "baseline_model"
 
 [dataloader]
 # Training DataLoader
-train_batch_size = 32
+train_batch_size = 8
 train_num_workers = 4
 train_shuffle = true
 # Validation DataLoader
-test_batch_size = 32
+test_batch_size = 8
 test_num_workers = 4
 test_shuffle = false
 
