@@ -2,6 +2,8 @@ import argparse
 import datetime
 from functools import partial
 from typing import Iterable, Tuple
+import matplotlib
+import matplotlib.axes
 import numpy as np
 import toml
 import torch
@@ -98,12 +100,13 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
     ax1.plot(scalar_dict["train_loss"], label="train_loss")
     ax1.legend()
-    ax1.set_semilogy()
+    
+    ax1.semilogy()
     ax1.set_title("train_loss")
     
     ax2.plot(scalar_dict["grad_norm"], label="grad_norm")
     ax2.legend()
-    ax2.set_semilogy()
+    ax2.semilogy()
     ax2.set_title("grad_norm")
 
     ax3.plot(scalar_dict["train_acc"], label="train_acc")
