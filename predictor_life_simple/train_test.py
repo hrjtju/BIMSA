@@ -51,22 +51,32 @@ def save_image(inputs, labels, outputs,
     fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
     ax1.axis("off")
     ax1.imshow(x_t0, cmap='gray')
-    ax1.set_title(r"$x_{t}$")
+    ax1.set_title("$x_{t}$\nSystem State at time t")
+    
     ax2.axis("off")
     ax2.imshow(x_t1, cmap='gray')
-    ax2.set_title(r"$x_{t+1}$")
+    ax2.set_title("$x_{t+1}$\nSystem State at time t+1")
+
     ax3.axis("off")
     ax3.imshow(xp_t0, cmap='gray')
-    ax3.set_title(r"$f(x_{t+1})$")
+    ax3.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
+
     ax4.axis("off")
     ax4.imshow(y_t1, cmap='gray')
-    ax4.set_title(r"$x_{t+2}$")
+    ax4.set_title("$x_{t+2}$\nSystem State at time t+2")
+
     ax5.axis("off")
     ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax5.set_title(r"$x_{t+1} - f(x_{t+1})$")
+    ax5.set_title("$x_{t+1} - f(x_{t+1})$\nPrediction Error")
+    if torch.norm(y_t1 - xp_t0) < 1e-6:
+        # display "ALL CORRECT" in the center of the figure
+        ax5.text(0.5, 0.5, "ALL CORRECT", 
+                 fontsize=20, color='green', ha='center', va='center', transform=ax5.transAxes
+                 )
+    
     ax6.axis("off")
     ax6.imshow(x_t1 - x_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax6.set_title(r"$x_{t+1} - x_{t}$")
+    ax6.set_title("$x_{t+1} - x_{t}$\nDifference between $x_{t+1}$ and $x_{t}$")
 
     # convert plotting results to array format
     buf = BytesIO()
