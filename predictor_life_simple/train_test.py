@@ -30,6 +30,13 @@ os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 
 torch2numpy = lambda x: x[0].permute(1, 2, 0).clone().detach().cpu().numpy()
 
+scalar_dict = {
+    "train_loss": [],
+    "train_acc": [],
+    "grad_norm": [],
+    "val_acc": [],
+}
+
 def save_image(inputs, labels, outputs, 
                idx: int, base_dir: str):
     
@@ -81,6 +88,36 @@ def save_image(inputs, labels, outputs,
     plt.close()
     
     return image
+
+def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
+    
+    # plot the scalar_dict values and store the figure
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+    ax1.plot(scalar_dict["train_loss"], label="train_loss")
+    ax1.legend()
+    ax1.set_semilogy()
+    ax1.set_title("train_loss")
+    
+    ax2.plot(scalar_dict["grad_norm"], label="grad_norm")
+    ax2.legend()
+    ax2.set_semilogy()
+    ax2.set_title("grad_norm")
+
+    ax3.plot(scalar_dict["train_acc"], label="train_acc")
+    ax3.legend()
+    ax3.set_title("train_acc")
+    
+    ax4.plot(scalar_dict["val_acc"], label="val_acc")
+    ax4.set_title("val_acc")
+    ax4.legend()
+
+    fig.savefig(f"result_imgs/{base_dir}/scalar_dict.png")
+    
+    # save plotting results
+    if not os.path.exists(f"result_imgs/{base_dir}"):
+        os.makedirs(f"result_imgs/{base_dir}")
+    
+    plt.close()
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -266,6 +303,9 @@ def train_model(
                        "gradient_norm": norm.item(),
                        "item_acc": (item_acc:=(item_correct / labels.numel() * 100))
                        })
+            scalar_dict["train_loss"].append(d_loss.item())
+            scalar_dict["train_acc"].append(item_acc)
+            scalar_dict["grad_norm"].append(norm.item())
             
             if idx % 100 == 0:
                 
@@ -333,8 +373,11 @@ def train_model(
         
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Acc: {val_epoch_acc:.2f}%")
+        scalar_dict["val_acc"].append(val_epoch_acc)
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
+    
+
 
 if __name__ == "__main__":
     # reads the command line arguments
