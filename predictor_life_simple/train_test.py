@@ -95,11 +95,11 @@ def save_image(inputs, labels, outputs,
     # save plotting results
     if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
         os.makedirs(f"result/predictor_life_simple/{base_dir}")
-    plt.savefig(f"result/predictor_life_simple/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
+    plt.savefig(fig_f:=f"result/predictor_life_simple/{base_dir}/train_sample_{epoch:>02d}_{idx:>05d}.png", bbox_inches="tight")
     plt.close()
     
     with open(f"result/predictor_life_simple/{base_dir}/visualization.md", 'a') as f:
-        f.write(f"\n![](./train_sample_{idx}.png)\n<center>Iteration {idx+1}</center>\n")
+        f.write(f"\n![]({fig_f})\n<center>Iteration {idx+1}</center>\n")
     
     return image
 
