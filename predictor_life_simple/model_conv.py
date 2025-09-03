@@ -50,6 +50,8 @@ class SimpleCNNSmall(nn.Module):
         return x
 
 class MultiScale(nn.Module):
+    __version__ = '0.1.0'
+    
     def __init__(self):
         super(MultiScale, self).__init__()
         
