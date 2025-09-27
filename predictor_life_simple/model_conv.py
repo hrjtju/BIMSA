@@ -49,6 +49,7 @@ class SimpleCNNSmall(nn.Module):
         # x = torch.sigmoid(x)
         return x
 
+#TODO: Make kernel larger (to 5 or 7)
 class SimpleCNNTiny(nn.Module):
     __version__ = '0.1.0'
 
@@ -69,6 +70,7 @@ class SimpleCNNTiny(nn.Module):
         x = self.conv3(x)
         return x
 
+#TODO: Make this smaller
 class MultiScale(nn.Module):
     __version__ = '0.1.0'
     

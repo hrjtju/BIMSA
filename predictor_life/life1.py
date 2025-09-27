@@ -13,18 +13,6 @@ ON = 255
 OFF = 0
 vals = [ON, OFF]
 
-#TODO: Integrate with pyseagull if possible.
-#TODO: And try: 
-#TODO: Moore Neighborhood: [
-#TODO:  B36/S23, 
-#TODO:  B3678/S34678, 
-#TODO:  B35678/S5678, 
-#TODO:  B2/S, 
-#TODO:  B234/S，
-#TODO:  B345/S5
-#TODO: ]
-#TODO: Von Neumann neighborhood: [ B13/S012V, B2/S013V ]
-
 def randomGrid(N):
 
     """returns a grid of NxN random values"""
