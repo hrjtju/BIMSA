@@ -2,8 +2,6 @@ import argparse
 import datetime
 from functools import partial
 from typing import Iterable, Tuple
-import matplotlib
-import matplotlib.axes
 import numpy as np
 import toml
 import torch
@@ -28,6 +26,7 @@ from jaxtyping import Float, Array
 
 import os 
 
+# TODO: Update Dataset Name
 bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
 os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 # os.path.append("./predictor_life/hyperparams/")
@@ -92,6 +91,7 @@ def save_image(inputs, labels, outputs,
     buf.seek(0)
     image = np.array(Image.open(buf))[:, :, :3]
     
+    # TODO: Update Dataset Name
     # save plotting results
     if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
         os.makedirs(f"result/predictor_life_simple/{base_dir}")
@@ -132,6 +132,7 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     ax4.grid()
     ax4.legend()
 
+    # TODO: Update Dataset Name
     fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
     
     # save plotting results
@@ -145,6 +146,7 @@ def plot_network_analysis(model: nn.Module):
     Plot the ALL trained weights of the CNN model.
     """
     
+    # TODO: Update Dataset Name
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -233,6 +235,7 @@ def train_model(
                 args: dict = None
                 ):
     
+    # TODO: Update Dataset Name
     train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
         data_dir=bimsa_life_100_dir,
         batch_size=args["dataloader"]["train_batch_size"],
@@ -241,6 +244,7 @@ def train_model(
         split='train'
     )
 
+    # TODO: Update Dataset Name
     test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
         data_dir=bimsa_life_100_dir,
         batch_size=args["dataloader"]["test_batch_size"],
@@ -261,6 +265,7 @@ def train_model(
     summary(model, input_size=(1, 2, 100, 100), verbose=1)
     
     # Define loss function and optimizer
+    optim.Adam()
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
 
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
@@ -307,10 +312,13 @@ def train_model(
             outputs = model(inputs.to(device))
             outputs_logits = rearrange(outputs, "b c w h -> (b w h) c")
             
+            #TODO: add L1 loss
+            l1_loss = 0
+            
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
             d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
-                / torch.tensor(output_class_num, dtype=torch.float32).to(device))
+                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + l1_loss
 
             d_loss.backward()
             
@@ -360,16 +368,17 @@ def train_model(
 
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
-        
+            
+        # TODO: Update Dataset Name
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
             torch.save(model.state_dict(), f"./result/predictor_life_simple/"
                        f"{start_time_str}_{args['wandb']['entity']}/"
-                       f"best_simple_life_UNet_{model_class.__version__}.pth")
+                       f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
         torch.save(model.state_dict(), f"./result/predictor_life_simple/"
                    f"{start_time_str}_{args['wandb']['entity']}/"
-                   f"last_simple_life_UNet_{model_class.__version__}.pth")
+                   f"last_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
 
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")

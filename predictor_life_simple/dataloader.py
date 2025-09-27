@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, List
+from typing import Literal, Tuple, List
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -26,7 +26,13 @@ class LifeGameDataset(Dataset):
         y = (x_2 / 255)
         return x, y
 
-def get_dataloader(data_dir, batch_size: int, shuffle: bool = True, num_workers: int = 0, split: str = 'train', split_ratio: float = 0.8):
+def get_dataloader(data_dir, 
+                   batch_size: int, 
+                   shuffle: bool = True, 
+                   num_workers: int = 0, 
+                   split: Literal["train", "test", "all"] = "train", 
+                   split_ratio: float = 0.8
+                   ):
     """
     Creates a DataLoader for the LifeGameDataset with train/test split.
 
@@ -44,10 +50,15 @@ def get_dataloader(data_dir, batch_size: int, shuffle: bool = True, num_workers:
     all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.npy')]
     all_files.sort()  # Ensure deterministic split
     split_idx = int(len(all_files) * split_ratio)
-    if split == 'train':
+    if split == "train":
         file_list = all_files[:split_idx]
-    else:
+    elif split == "test":
         file_list = all_files[split_idx:]
+    elif split == "all":
+        file_list = all_files
+    else:
+        raise NotImplementedError(f"Argument 'split'(current value {split}) only accepts 'train', 'test' or 'all'.")
+    
     dataset = LifeGameDataset(file_list)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     return dataloader
