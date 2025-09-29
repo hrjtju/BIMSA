@@ -94,10 +94,10 @@ class MultiScale(nn.Module):
         )
         
         self.stem = nn.Sequential(
-            nn.Conv2d(int(2*3), 2, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
-            nn.BatchNorm2d(2),
+            nn.Conv2d(int(2*3), 4, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
+            nn.BatchNorm2d(4),
             nn.ReLU(),
-            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+            nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
         )
     
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch c w h"]:

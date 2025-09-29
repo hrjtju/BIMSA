@@ -29,15 +29,15 @@ name = "CyclicLR"
     # Parameters for CyclicLR scheduler
     base_lr=0.001
     max_lr=0.05
-    step_size_up=50
-    step_size_down=10
+    step_size_up=70
+    step_size_down=20
 
 [model]
 name = "MultiScale"
 
 # Training parameters
 [training]
-epochs = 5
+epochs = 8
 r_ratio_start = 1
 r_ratio_decay = 1e-5
 r_ratio_min = 0.01
