@@ -22,7 +22,7 @@ from jaxtyping import Float, Array
 
 import os 
 
-bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
+BIMSA_LIFE_DIR = os.environ.get('BIMSA_LIFE_DIR', "./predictor_life/datasets/life/")
 # os.path.append("./predictor_life/hyperparams/")
 
 # Assuming dataloader and model_conv are already defined
@@ -80,7 +80,7 @@ def train_model(
                 ):
     
     train_loader = get_dataloader(
-        data_dir=bimsa_life_100_dir,
+        data_dir=BIMSA_LIFE_DIR,
         batch_size=args["dataloader"]["train_batch_size"],
         shuffle=args["dataloader"]["train_shuffle"],
         num_workers=args["dataloader"]["train_num_workers"],
@@ -88,7 +88,7 @@ def train_model(
     )
 
     test_loader = get_dataloader(
-        data_dir=bimsa_life_100_dir,
+        data_dir=BIMSA_LIFE_DIR,
         batch_size=args["dataloader"]["test_batch_size"],
         shuffle=args["dataloader"]["test_shuffle"],
         num_workers=args["dataloader"]["test_num_workers"],

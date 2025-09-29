@@ -27,7 +27,7 @@ from jaxtyping import Float, Array
 import os 
 
 # TODO: Update Dataset Name
-bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', "./predictor_life/datasets/life/")
+bimsa_life_dir = os.environ.get('BIMSA_LIFE_DIR', "./predictor_life_simple/datasets")
 os.environ['WANDB_BASE_URL'] = "https://api.bandw.top"
 # os.path.append("./predictor_life/hyperparams/")
 
@@ -236,7 +236,7 @@ def train_model(
                 ):
     
     rule_data_str = f"{args['sys_size']}-{args['data_iters']}-{args['data_rule'].replace('/', '_')}"
-    dataset_dir = f"predictor_life_simple/datasets/{rule_data_str}/"
+    dataset_dir = f"{bimsa_life_dir}/{rule_data_str}/"
     start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}".split('.')[0]
     save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
     

@@ -14,7 +14,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 import os 
-bimsa_life_100_dir = os.environ.get('BIMSA_LIFE_100_DIR', '/root/autodl-tmp/life/')
+BIMSA_LIFE_DIR = os.environ.get('BIMSA_LIFE_DIR', '/root/autodl-tmp/life/')
 
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
@@ -183,7 +183,7 @@ def train_model(model: Callable[[Tensor], Tuple[Tensor, Tensor, Tensor, Tensor]]
         wandb.log({"val_epoch_loss": val_epoch_loss, "val_epoch_acc": val_epoch_acc})
 
 train_loader = get_dataloader(
-    data_dir=bimsa_life_100_dir,
+    data_dir=BIMSA_LIFE_DIR,
     batch_size=8,
     shuffle=True,
     num_workers=0,
@@ -191,7 +191,7 @@ train_loader = get_dataloader(
 )
 
 test_loader = get_dataloader(
-    data_dir=bimsa_life_100_dir,
+    data_dir=BIMSA_LIFE_DIR,
     batch_size=2,
     shuffle=False,
     num_workers=0,

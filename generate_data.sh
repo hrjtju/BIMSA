@@ -1,3 +1,4 @@
+export BIMSA_LIFE_DIR="/root/autodl-tmp/life/" 
 
 python ./predictor_life_simple/life1.py --rule "B3/S23"
 python ./predictor_life_simple/life1.py --rule "B36/S23"
