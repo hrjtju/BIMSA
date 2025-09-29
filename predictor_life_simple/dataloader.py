@@ -11,19 +11,20 @@ class LifeGameDataset(Dataset):
             file_list (List[str]): List of file paths to use in the dataset.
         """
         self.file_list = file_list
+        self.len_per_file = np.load(self.file_list[0]).shape[0]
 
     def __len__(self) -> int:
-        return len(self.file_list) * 1000
+        return len(self.file_list) * self.len_per_file
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        file_idx = idx // 1000
+        file_idx = idx // self.len_per_file
         file_path = self.file_list[file_idx]
         data = np.load(file_path)  # Shape: [T, N, N]
         t = np.random.randint(0, data.shape[0] - 2)
         x, x_1, x_2 = map(lambda x: torch.tensor(x, dtype=torch.float32), 
                           [data[t], data[t + 1], data[t + 2]])
-        x = (torch.stack([x, x_1], dim=0) / 255)
-        y = (x_2 / 255)
+        x = (torch.stack([x, x_1], dim=0) / (dim:=(255 if x.max() > 100 else 1)))
+        y = (x_2 / dim)
         return x, y
 
 def get_dataloader(data_dir, 
