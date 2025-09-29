@@ -5,7 +5,6 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.animation as animation
-from numba import njit
 from functools import partial
 import matplotlib.pyplot as plt
 from matplotlib import animation
