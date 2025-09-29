@@ -235,9 +235,19 @@ def train_model(
                 args: dict = None
                 ):
     
+    rule_data_str = f"{args.sys_size}-{args.data_iters}-{args.data_rule.replace('/', '_')}"
+    dataset_dir = f"predictor_life_simple/datasets/{rule_data_str}/"
+    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
+    save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
+    
+    if args["wandb"]["turn_on"]:
+        wandb.init(project="predictor_life_simple", name=save_base_str)
+    else:
+        wandb.init(mode="disabled")
+    
     # TODO: Update Dataset Name
     train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
-        data_dir=bimsa_life_100_dir,
+        data_dir=dataset_dir,
         batch_size=args["dataloader"]["train_batch_size"],
         shuffle=args["dataloader"]["train_shuffle"],
         num_workers=args["dataloader"]["train_num_workers"],
@@ -246,7 +256,7 @@ def train_model(
 
     # TODO: Update Dataset Name
     test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
-        data_dir=bimsa_life_100_dir,
+        data_dir=dataset_dir,
         batch_size=args["dataloader"]["test_batch_size"],
         shuffle=args["dataloader"]["test_shuffle"],
         num_workers=args["dataloader"]["test_num_workers"],
@@ -281,7 +291,6 @@ def train_model(
             use_lr_scheduler = True
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
-    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
     
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
@@ -351,7 +360,7 @@ def train_model(
                 # 将 image_grid 异步存储为 matplotlib 图像
                 image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
                            idx, epoch,
-                           f"{start_time_str}_{args['wandb']['entity']}"
+                           save_base_str
                           )
                 
                 wandb.log({
@@ -373,11 +382,9 @@ def train_model(
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
-            torch.save(model.state_dict(), f"./result/predictor_life_simple/"
-                       f"{start_time_str}_{args['wandb']['entity']}/"
+            torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
                        f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
-        torch.save(model.state_dict(), f"./result/predictor_life_simple/"
-                   f"{start_time_str}_{args['wandb']['entity']}/"
+        torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
                    f"last_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
 
         
@@ -407,7 +414,7 @@ def train_model(
                     
                         image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
                            idx, epoch,
-                           f"test_{start_time_str}_{args['wandb']['entity']}"
+                           save_base_str
                           )
                         
                         wandb.log({
@@ -420,14 +427,19 @@ def train_model(
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
     
-    plot_scalar(scalar_dict, f"{start_time_str}_{args['wandb']['entity']}")
+    plot_scalar(scalar_dict, save_base_str)
     # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
 
 
 if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
+    
     in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-r", "--rule", dest="data_rule", type=str, default="B3/S23", help="Life rules")
+    in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
+    in_profile.add_argument("-w", "--size", dest="sys_size", type=int, default=200, help="System size")
+    
     in_profile_args = in_profile.parse_args()
 
     print(in_profile_args.hyperparameters, end='\n\n')
@@ -435,11 +447,5 @@ if __name__ == "__main__":
 
     print("Starting training...")
     # Call the training function
-    
-    if args_dict["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=args_dict["wandb"]["entity"])
-    else:
-        wandb.init(mode="disabled")
-
     
     train_model(args_dict)
