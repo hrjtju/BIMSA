@@ -72,32 +72,32 @@ class SimpleCNNTiny(nn.Module):
 
 #TODO: Make this smaller
 class MultiScale(nn.Module):
-    __version__ = '0.1.0'
+    __version__ = '0.2.0'
     
     def __init__(self):
         super(MultiScale, self).__init__()
         
         self.conv_3x3 = nn.Sequential(
-            nn.Conv2d(2, 8, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
-            nn.BatchNorm2d(8),
+            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
+            nn.BatchNorm2d(2),
             nn.LeakyReLU(0.1)
         )
         self.conv_5x5 = nn.Sequential(
-            nn.Conv2d(2, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular"),
-            nn.BatchNorm2d(8),
+            nn.Conv2d(2, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular"),
+            nn.BatchNorm2d(2),
             nn.LeakyReLU(0.1)
         )
         self.conv_3x3_dilated = nn.Sequential(
-            nn.Conv2d(2, 8, kernel_size=3, stride=1, padding=2, dilation=2, padding_mode="circular"),
-            nn.BatchNorm2d(8),
+            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=2, dilation=2, padding_mode="circular"),
+            nn.BatchNorm2d(2),
             nn.LeakyReLU(0.1)
         )
         
         self.stem = nn.Sequential(
-            nn.Conv2d(int(8*3), 8, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
-            nn.BatchNorm2d(8),
+            nn.Conv2d(int(2*3), 2, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
+            nn.BatchNorm2d(2),
             nn.ReLU(),
-            nn.Conv2d(8, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
         )
     
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch c w h"]:

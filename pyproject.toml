@@ -25,3 +25,28 @@ dependencies = [
     "tqdm>=4.67.1",
     "wandb>=0.21.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
+]
+torchvision = [
+  { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
+  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
+]

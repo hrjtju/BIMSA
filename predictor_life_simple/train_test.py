@@ -235,13 +235,15 @@ def train_model(
                 args: dict = None
                 ):
     
-    rule_data_str = f"{args.sys_size}-{args.data_iters}-{args.data_rule.replace('/', '_')}"
+    rule_data_str = f"{args['sys_size']}-{args['data_iters']}-{args['data_rule'].replace('/', '_')}"
     dataset_dir = f"predictor_life_simple/datasets/{rule_data_str}/"
     start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
     save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
     
+    print(f"\nPicking Dataset: {dataset_dir}\nSaving Base Directory: {save_base_str}\n\n")
+    
     if args["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=save_base_str)
+        wandb.init(project="predictor_life_simple", name=args["wandb"]["entity"])
     else:
         wandb.init(mode="disabled")
     
@@ -272,10 +274,9 @@ def train_model(
     # Move model to device
     model = model_class().to(device)
 
-    summary(model, input_size=(1, 2, 100, 100), verbose=1)
+    summary(model, input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
     
     # Define loss function and optimizer
-    optim.Adam()
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
 
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
@@ -322,12 +323,15 @@ def train_model(
             outputs_logits = rearrange(outputs, "b c w h -> (b w h) c")
             
             #TODO: add L1 loss
-            l1_loss = 0
+            for name, param in model.named_parameters():
+                if 'weight' in name:
+                    l1_reg = l1_reg + torch.linalg.norm(param, 1)
+            l1_reg = 0
             
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
             d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
-                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + l1_loss
+                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + 1e-5 * l1_reg
 
             d_loss.backward()
             
@@ -428,6 +432,7 @@ def train_model(
         wandb.log({"val_epoch_acc": val_epoch_acc})
     
     plot_scalar(scalar_dict, save_base_str)
+    torch.cuda.empty_cache()
     # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
 
 
@@ -436,15 +441,15 @@ if __name__ == "__main__":
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
     
     in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
-    in_profile.add_argument("-r", "--rule", dest="data_rule", type=str, default="B3/S23", help="Life rules")
+    in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B3/S23", help="Life rules")
     in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
-    in_profile.add_argument("-w", "--size", dest="sys_size", type=int, default=200, help="System size")
+    in_profile.add_argument("-w", "--sysSize", dest="sys_size", type=int, default=200, help="System size")
     
     in_profile_args = in_profile.parse_args()
 
     print(in_profile_args.hyperparameters, end='\n\n')
-    args_dict = toml.load(in_profile_args.hyperparameters)
-
+    args_dict = toml.load(in_profile_args.hyperparameters) | dict(in_profile_args._get_kwargs())
+    print(args_dict)
     print("Starting training...")
     # Call the training function
     
