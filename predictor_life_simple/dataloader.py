@@ -31,8 +31,7 @@ def get_dataloader(data_dir,
                    batch_size: int, 
                    shuffle: bool = True, 
                    num_workers: int = 0, 
-                   split: Literal["train", "test", "all"] = "train", 
-                   split_ratio: float = 0.8
+                   split: Literal["train", "test", "all"] = "train"
                    ):
     """
     Creates a DataLoader for the LifeGameDataset with train/test split.
@@ -50,11 +49,11 @@ def get_dataloader(data_dir,
     """
     all_files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.npy')]
     all_files.sort()  # Ensure deterministic split
-    split_idx = int(len(all_files) * split_ratio)
+    test_files = all_files[::5]
     if split == "train":
-        file_list = all_files[:split_idx]
+        file_list = [i for i in all_files if i not in test_files]
     elif split == "test":
-        file_list = all_files[split_idx:]
+        file_list = test_files
     elif split == "all":
         file_list = all_files
     else:

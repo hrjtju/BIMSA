@@ -111,7 +111,7 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     ax1.plot(pd.Series(scalar_dict["train_loss"]).rolling(window=len(scalar_dict["train_loss"])//10, min_periods=1, center=True).mean(), label="train_loss (smoothed)", color="#1f77b4")
     ax1.legend()
     ax1.grid()
-    ax1.semilogy()
+    # ax1.semilogy()
     ax1.set_title("train_loss")
 
     ax2.plot(scalar_dict["grad_norm"], label="grad_norm", alpha=0.3)
@@ -237,7 +237,7 @@ def train_model(
     
     rule_data_str = f"{args['sys_size']}-{args['data_iters']}-{args['data_rule'].replace('/', '_')}"
     dataset_dir = f"predictor_life_simple/datasets/{rule_data_str}/"
-    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}"
+    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}".split('.')[0]
     save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
     
     print(f"\nPicking Dataset: {dataset_dir}\nSaving Base Directory: {save_base_str}\n\n")
@@ -264,7 +264,6 @@ def train_model(
         num_workers=args["dataloader"]["test_num_workers"],
         split='test'
     )
-    
         
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -275,6 +274,8 @@ def train_model(
     model = model_class().to(device)
 
     summary(model, input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
+    
+    # model = torch.compile(model)
     
     # Define loss function and optimizer
     optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
@@ -323,10 +324,10 @@ def train_model(
             outputs_logits = rearrange(outputs, "b c w h -> (b w h) c")
             
             #TODO: add L1 loss
+            l1_reg = 0
             for name, param in model.named_parameters():
                 if 'weight' in name:
-                    l1_reg = l1_reg + torch.linalg.norm(param, 1)
-            l1_reg = 0
+                    l1_reg = l1_reg + torch.linalg.vector_norm(param, ord=1, dim=None)
             
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
