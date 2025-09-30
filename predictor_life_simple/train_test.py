@@ -11,6 +11,7 @@ import wandb
 from dataloader import get_dataloader
 import model_conv
 import matplotlib.pyplot as plt
+from matplotlib import axes
 from io import BytesIO
 from PIL import Image
 import pandas as pd
@@ -59,19 +60,27 @@ def save_image(inputs, labels, outputs,
 
     
     fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
+    
+    ax1: axes.Axes
+    ax2: axes.Axes
+    ax3: axes.Axes
+    ax4: axes.Axes
+    ax5: axes.Axes
+    ax6: axes.Axes
+    
     ax1.axis("off")
     ax1.imshow(x_t0, cmap='gray')
     ax1.set_title("$x_{t}$\nTrue System State at time t")
     ax2.axis("off")
     ax2.imshow(x_t1, cmap='gray')
     ax2.set_title("$x_{t+1}$\nTrue System State at time t+1")
-    ax3.axis("off")
-    ax3.imshow(xp_t0, cmap='gray')
-    ax3.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
-
     ax4.axis("off")
-    ax4.imshow(y_t1, cmap='gray')
-    ax4.set_title("$x_{t+2}$\nTrue System State at time t+2")
+    ax4.imshow(xp_t0, cmap='gray')
+    ax4.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
+
+    ax3.axis("off")
+    ax3.imshow(y_t1, cmap='gray')
+    ax3.set_title("$x_{t+2}$\nTrue System State at time t+2")
     ax5.axis("off")
     ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
     ax5.set_title("$x_{t+1} - f(x_{t+1})$\nPrediction Error")
@@ -91,7 +100,6 @@ def save_image(inputs, labels, outputs,
     buf.seek(0)
     image = np.array(Image.open(buf))[:, :, :3]
     
-    # TODO: Update Dataset Name
     # save plotting results
     if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
         os.makedirs(f"result/predictor_life_simple/{base_dir}")
@@ -107,11 +115,17 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     
     # plot the scalar_dict values and store the figure
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+    
+    ax1: axes.Axes
+    ax2: axes.Axes
+    ax3: axes.Axes
+    ax4: axes.Axes
+    
     ax1.plot(scalar_dict["train_loss"], label="train_loss", alpha=0.3)
-    ax1.plot(pd.Series(scalar_dict["train_loss"]).rolling(window=len(scalar_dict["train_loss"])//10, min_periods=1, center=True).mean(), label="train_loss (smoothed)", color="#1f77b4")
+    ax1.plot(l:=pd.Series(scalar_dict["train_loss"]).rolling(window=len(scalar_dict["train_loss"])//10, min_periods=1, center=True).mean(), label="train_loss (smoothed)", color="#1f77b4")
     ax1.legend()
     ax1.grid()
-    # ax1.semilogy()
+    ax1.set_ylim(0, max(l)*1.1)
     ax1.set_title("train_loss")
 
     ax2.plot(scalar_dict["grad_norm"], label="grad_norm", alpha=0.3)

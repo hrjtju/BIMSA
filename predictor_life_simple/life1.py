@@ -70,8 +70,8 @@ def main():
         np.save(f"{dest_dir}/{i}.npy", sim.get_history(exclude_init=True))
     
     # plt.imshow(sim.get_history()[-1])
-    sim.animate()
-    plt.show()
+    # sim.animate()
+    # plt.show()
 
 # call main
 if __name__ == '__main__':

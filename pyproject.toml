@@ -13,8 +13,9 @@ dependencies = [
     "jaxtyping>=0.3.2",
     "jupyter>=1.1.1",
     "matplotlib>=3.10.3",
+    "nose>=1.3.7",
     "numba>=0.61.2",
-    "numpy<=1.26",
+    "numpy==1.26",
     "pandas>=2.3.2",
     "pyseagull>=1.0.0b4",
     "seaborn>=0.13.2",
@@ -26,27 +27,27 @@ dependencies = [
     "wandb>=0.21.0",
 ]
 
-[[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
-explicit = true
+# [[tool.uv.index]]
+# name = "pytorch-cu118"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
 
-[[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
-explicit = true
+# [[tool.uv.index]]
+# name = "pytorch-cu124"
+# url = "https://download.pytorch.org/whl/cu124"
+# explicit = true
 
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
+# [[tool.uv.index]]
+# name = "pytorch-cpu"
+# url = "https://download.pytorch.org/whl/cpu"
+# explicit = true
 
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
-  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
-]
-torchvision = [
-  { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
-  { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
-]
+# [tool.uv.sources]
+# torch = [
+#   { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
+#   { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
+# ]
+# torchvision = [
+#   { index = "pytorch-cu118", marker = "sys_platform == 'win32'" },
+#   { index = "pytorch-cu124", marker = "sys_platform == 'linux'" }
+# ]
