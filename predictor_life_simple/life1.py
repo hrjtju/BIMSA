@@ -96,6 +96,10 @@ def board_init_monkey_patch(self, size=(100, 100), p_pos=0.1):
 life_rule = life_rule_monkey_patch
 sgl.Board.__init__ = board_init_monkey_patch
 
+slf.Pulsar.size = (17, 17)
+slf.FigureEight.size = (6, 6)
+slf.Glider.size = (3, 3)
+
 ## ==================== Code ==============================
 class Args:
     size: int
