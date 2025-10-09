@@ -2,12 +2,16 @@
 import argparse
 import os
 import random
+import re
+from typing import List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.animation as animation
 from functools import partial
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from loguru import logger
+from scipy.signal import convolve2d
 
 plt.rcParams["animation.html"] = "jshtml"
 
@@ -17,6 +21,82 @@ from seagull.rules import conway_classic, life_rule
 
 from tqdm import tqdm
 
+
+## ==================== Monkey Patch ======================
+
+def life_rule_monkey_patch(X: np.ndarray, rulestring: str) -> np.ndarray:
+    """A generalized life rule that accepts a rulestring in B/S notation
+
+    Rulestrings are commonly expressed in the B/S notation where B (birth) is a
+    list of all numbers of live neighbors that cause a dead cell to come alive,
+    and S (survival) is a list of all the numbers of live neighbors that cause
+    a live cell to remain alive.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input board matrix
+    rulestring : str
+        The rulestring in B/S notation
+
+    Returns
+    -------
+    np.ndarray
+        Updated board after applying the rule
+    """
+    birth_req, survival_req, von_neumann = _parse_rulestring_monkey_patch(rulestring)
+    neighbors = _count_neighbors_monkey_patch(X, von_neumann)
+    birth_rule = (X == 0) & (np.isin(neighbors, birth_req))
+    survival_rule = (X == 1) & (np.isin(neighbors, survival_req))
+    return birth_rule | survival_rule
+
+def _parse_rulestring_monkey_patch(r: str) -> Tuple[List[int], List[int]]:
+    """Parse a rulestring"""
+    pattern = re.compile("B([0-8]+)?/S([0-8]+)?V?")
+    von_neumann = False
+    
+    if pattern.match(r):
+        if r.endswith("V"):
+            r = r[:-1]
+            von_neumann = True
+            
+        birth, survival = r.split("/")
+        birth_neighbors = [int(s) for s in birth if s.isdigit()]
+        survival_neighbors = [int(s) for s in survival if s.isdigit()]
+    else:
+        msg = f"Rulestring ({r}) must satisfy the pattern {pattern}"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    return birth_neighbors, survival_neighbors, von_neumann
+
+def _count_neighbors_monkey_patch(X: np.ndarray, von_neumann: bool) -> np.ndarray:
+    """Get the number of neighbors in a binary 2-dimensional matrix"""
+    if von_neumann:
+        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+    else:
+        kernel = np.ones((3, 3))
+        
+    n = convolve2d(X, kernel, mode="same", boundary="wrap") - X
+    return n
+
+def board_init_monkey_patch(self, size=(100, 100), p_pos=0.1):
+    """Initialize the class
+
+    Parameters
+    ----------
+    size : array_like of size 2
+        Size of the board (default is `(100, 100)`)
+
+    """
+    self.size = size
+    w, h = self.size
+    self.state = np.random.choice([True, False], w*h, p=[p_pos, 1-p_pos]).reshape(w, h)
+
+life_rule = life_rule_monkey_patch
+sgl.Board.__init__ = board_init_monkey_patch
+
+## ==================== Code ==============================
 class Args:
     size: int
     iters: int
