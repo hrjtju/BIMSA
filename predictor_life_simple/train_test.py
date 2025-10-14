@@ -15,6 +15,9 @@ from matplotlib import axes
 from io import BytesIO
 from PIL import Image
 import pandas as pd
+import warnings
+
+from model_conv import GroupEquivariantCNN
 
 import torch.nn as nn
 import torch.optim as optim
@@ -26,6 +29,8 @@ from einops import rearrange, reduce
 from jaxtyping import Float, Array
 
 import os 
+
+warnings.filterwarnings("ignore")
 
 # TODO: Update Dataset Name
 bimsa_life_dir = os.environ.get('BIMSA_LIFE_DIR', "./predictor_life_simple/datasets")
@@ -285,9 +290,14 @@ def train_model(
     model_class = getattr(model_conv, args["model"]["name"])
     
     # Move model to device
-    model = model_class().to(device)
+    model: nn.Module|GroupEquivariantCNN = model_class()
 
-    summary(model, input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
+    try:
+        summary(model, input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
+    except:
+        summary(model.cpu().export(), input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
+    
+    model = model.to(device)
     
     # model = torch.compile(model)
     
@@ -375,7 +385,6 @@ def train_model(
             
             if idx % 100 == 0:
                 
-                
                 # 将 image_grid 异步存储为 matplotlib 图像
                 image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
                            idx, epoch,
@@ -388,8 +397,8 @@ def train_model(
 
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
-            if idx % 10 == 0:
-                print(f"| {datetime.datetime.now()} | Idx: {idx:>4d}/{len(train_loader):<6d} "
+            if (idx+1) % 40 == 0:
+                print(f"| {datetime.datetime.now()} | Idx: {idx+1:>4d}/{len(train_loader):<6d} "
                       f"| loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
         
@@ -407,7 +416,7 @@ def train_model(
                    f"last_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
 
         
-        print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
+        print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%", flush=True)
         
         wandb.log({"train_epoch_loss": epoch_loss, "train_epoch_acc": epoch_acc})
         
@@ -441,7 +450,7 @@ def train_model(
                         })
         
         val_epoch_acc = 100. * val_correct / val_total
-        print(f"Acc: {val_epoch_acc:.2f}%")
+        print(f"Acc: {val_epoch_acc:.2f}%", flush=True)
         scalar_dict["val_acc"].append(val_epoch_acc)
         
         wandb.log({"val_epoch_acc": val_epoch_acc})

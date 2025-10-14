@@ -4,6 +4,21 @@ import torch.nn as nn
 from torch.nn.functional import sigmoid
 from einops import rearrange, reduce
 from jaxtyping import Float, Array
+from e2cnn import gspaces 
+from e2cnn import nn as enn
+
+class GroupEquivariantCNN(nn.Module):
+    __version__ = "undefined"
+    
+    def __init__(self):
+        super().__init__()
+        ...
+    
+    def forward(self, x):
+        ...
+    
+    def export(self):
+        ...
 
 class SimpleCNN(nn.Module):
     __version__ = '0.2.0'
@@ -110,4 +125,43 @@ class MultiScale(nn.Module):
         features = self.stem(features)
         return features
 
-# class TinyInception()
+class SimpleP4CNNSmall(GroupEquivariantCNN):
+    
+    __version__ = '0.1.0-p4'
+
+    # ---------- 内部工具 ----------
+    def __init__(self):
+        super().__init__()
+
+        r2_act = gspaces.Rot2dOnR2(N=4)
+        
+        in_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])
+        hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
+        out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
+
+        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=3,
+                                stride=1, padding=1, padding_mode="circular", bias=False)
+        self.bn1   = enn.InnerBatchNorm(hid_type)
+        self.act1  = enn.ReLU(hid_type, inplace=True)
+        self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=3,
+                                stride=1, padding=1, padding_mode="circular", bias=False)
+        self.bn2   = enn.InnerBatchNorm(hid_type)
+        self.act2  = enn.ReLU(hid_type, inplace=True)
+        self.conv3 = enn.R2Conv(hid_type, out_type, kernel_size=3,
+                                stride=1, padding=1, padding_mode="circular", bias=True)
+
+        self.in_type  = in_type
+        self.out_type = out_type
+
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+        x: enn.GeometricTensor = enn.GeometricTensor(x, self.in_type)
+
+        x = self.act1(self.bn1(self.conv1(x)))
+        x = self.act2(self.bn2(self.conv2(x)))
+        x = self.conv3(x)
+
+        return x.tensor
+
+    def export(self) -> nn.Module:
+        """返回普通 nn.Module，等变性固化，推理更快。"""
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
