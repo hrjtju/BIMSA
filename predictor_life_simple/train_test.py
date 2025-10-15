@@ -456,8 +456,8 @@ def train_model(
         wandb.log({"val_epoch_acc": val_epoch_acc})
         
         if (val_epoch_acc > 99 
-                and epoch > 4 
-                and np.all(scalar_dict["train_loss"][-30:] < 1e-3)
+                and epoch > 3 
+                and np.all(scalar_dict["train_loss"][-30:] < 1.5e-2)
                 and np.mean(scalar_dict["train_acc"][-30:]) > 99
                 ):
             print("Early Stopped.")
