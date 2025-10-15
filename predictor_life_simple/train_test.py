@@ -454,6 +454,14 @@ def train_model(
         scalar_dict["val_acc"].append(val_epoch_acc)
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
+        
+        if (val_epoch_acc > 99 
+                and epoch > 4 
+                and np.all(scalar_dict["train_loss"][-30:] < 1e-3)
+                and np.mean(scalar_dict["train_acc"][-30:]) > 99
+                ):
+            print("Early Stopped.")
+            break
     
     plot_scalar(scalar_dict, save_base_str)
     torch.cuda.empty_cache()
