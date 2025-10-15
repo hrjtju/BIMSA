@@ -25,13 +25,13 @@ class SimpleCNN(nn.Module):
 
     def __init__(self):
         super(SimpleCNN, self).__init__()
-        self.conv1 = nn.Conv2d(2, 32, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv1 = nn.Conv2d(2, 32, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn1 = nn.BatchNorm2d(32)
         self.act1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn2 = nn.BatchNorm2d(32)
         self.act2 = nn.ReLU()
-        self.conv3 = nn.Conv2d(32, 2, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv3 = nn.Conv2d(32, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         # 可选：self.bn3 = nn.BatchNorm2d(2)
 
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
@@ -47,13 +47,13 @@ class SimpleCNNSmall(nn.Module):
 
     def __init__(self):
         super(SimpleCNNSmall, self).__init__()
-        self.conv1 = nn.Conv2d(2, 8, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv1 = nn.Conv2d(2, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn1 = nn.BatchNorm2d(8)
         self.act1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(8, 8, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv2 = nn.Conv2d(8, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn2 = nn.BatchNorm2d(8)
         self.act2 = nn.ReLU()
-        self.conv3 = nn.Conv2d(8, 2, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv3 = nn.Conv2d(8, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         # 可选：self.bn3 = nn.BatchNorm2d(2)
 
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
@@ -70,13 +70,13 @@ class SimpleCNNTiny(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(2, 1, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv1 = nn.Conv2d(2, 1, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn1 = nn.BatchNorm2d(1)
         self.act1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(1, 1, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv2 = nn.Conv2d(1, 1, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         self.bn2 = nn.BatchNorm2d(1)
         self.act2 = nn.ReLU()
-        self.conv3 = nn.Conv2d(1, 2, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        self.conv3 = nn.Conv2d(1, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         # 可选：self.bn3 = nn.BatchNorm2d(2)
 
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
@@ -93,7 +93,7 @@ class MultiScale(nn.Module):
         super(MultiScale, self).__init__()
         
         self.conv_3x3 = nn.Sequential(
-            nn.Conv2d(2, 2, kernel_size=5, stride=1, padding=1, padding_mode="circular"),
+            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
             nn.BatchNorm2d(2),
             nn.LeakyReLU(0.1)
         )
@@ -140,15 +140,15 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
         out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
 
         self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=False)
+                                stride=1, padding=2, padding_mode="circular", bias=False)
         self.bn1   = enn.InnerBatchNorm(hid_type)
         self.act1  = enn.ReLU(hid_type, inplace=True)
         self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=False)
+                                stride=1, padding=2, padding_mode="circular", bias=False)
         self.bn2   = enn.InnerBatchNorm(hid_type)
         self.act2  = enn.ReLU(hid_type, inplace=True)
         self.conv3 = enn.R2Conv(hid_type, out_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=True)
+                                stride=1, padding=2, padding_mode="circular", bias=True)
 
         self.in_type  = in_type
         self.out_type = out_type
@@ -182,15 +182,15 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
         out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
 
         self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=False)
+                                stride=1, padding=2, padding_mode="circular", bias=False)
         self.bn1   = enn.InnerBatchNorm(hid_type)
         self.act1  = enn.ReLU(hid_type, inplace=True)
         self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=False)
+                                stride=1, padding=2, padding_mode="circular", bias=False)
         self.bn2   = enn.InnerBatchNorm(hid_type)
         self.act2  = enn.ReLU(hid_type, inplace=True)
         self.conv3 = enn.R2Conv(hid_type, out_type, kernel_size=5,
-                                stride=1, padding=1, padding_mode="circular", bias=True)
+                                stride=1, padding=2, padding_mode="circular", bias=True)
 
         self.in_type  = in_type
         self.out_type = out_type
@@ -207,3 +207,73 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
     def export(self) -> nn.Module:
         """返回普通 nn.Module，等变性固化，推理更快。"""
         return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
+
+class MultiScaleP4(GroupEquivariantCNN):
+    __version__ = '0.2.0-p4'
+    
+    def __init__(self):
+        super().__init__()
+        
+        r2_act = gspaces.Rot2dOnR2(N=4)
+        
+        in_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])
+        hid_type_0 = enn.FieldType(r2_act, 2 * [r2_act.regular_repr])
+        hid_type_1 = enn.FieldType(r2_act, 6 * [r2_act.regular_repr])
+        hid_type_2 = enn.FieldType(r2_act, 4 * [r2_act.trivial_repr])
+        out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])
+        
+        self.conv_3x3 = nn.Sequential(
+            enn.R2Conv(in_type, hid_type_0, kernel_size=3, stride=1, padding=1, padding_mode="circular"),
+            enn.InnerBatchNorm(hid_type_0),
+            enn.ReLU(hid_type_0, inplace=True)
+        )
+        self.conv_5x5 = nn.Sequential(
+            enn.R2Conv(in_type, hid_type_0, kernel_size=5, stride=1, padding=2, padding_mode="circular"),
+            enn.InnerBatchNorm(hid_type_0),
+            enn.ReLU(hid_type_0, inplace=True)
+        )
+        self.conv_3x3_dilated = nn.Sequential(
+            enn.R2Conv(in_type, hid_type_0, kernel_size=3, stride=1, padding=2, dilation=2, padding_mode="circular"),
+            enn.InnerBatchNorm(hid_type_0),
+            enn.ReLU(hid_type_0, inplace=True)
+        )
+        
+        self.stem = nn.Sequential(
+            enn.R2Conv(hid_type_1, hid_type_2, kernel_size=5, stride=1, padding=1, padding_mode="circular"),
+            enn.InnerBatchNorm(hid_type_2),
+            enn.ReLU(hid_type_2, inplace=True),
+            enn.R2Conv(hid_type_2, out_type, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+        )
+    
+        self.in_type = in_type
+        self.hid_type_0 = hid_type_0
+        self.hid_type_1 = hid_type_1
+        self.hid_type_2 = hid_type_2
+        self.out_type = out_type
+    
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch c w h"]:
+        x: enn.GeometricTensor = enn.GeometricTensor(x, self.in_type)
+        
+        features = [
+            self.conv_3x3(x).tensor,
+            self.conv_5x5(x).tensor,
+            self.conv_3x3_dilated(x).tensor,
+        ]
+        
+        print(*[i.shape for i in features])
+        
+        features = rearrange(features, "n b c w h -> b (n c) w h")
+        
+        features = enn.GeometricTensor(features, self.hid_type_1)
+        
+        features = self.stem(features)
+        return features.tensor
+    
+    def export(self) -> nn.Module:
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
+
+
+if __name__ == "__main__":
+    model = MultiScaleP4()
+    model(torch.randn(1, 2, 200, 200))
+    model.export()
