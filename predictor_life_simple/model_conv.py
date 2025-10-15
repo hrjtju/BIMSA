@@ -167,7 +167,7 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
         return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
 
 
-class SimpleP4CNNSmall(GroupEquivariantCNN):
+class SimpleP4CNNTiny(GroupEquivariantCNN):
     
     __version__ = '0.1.0-p4'
 
