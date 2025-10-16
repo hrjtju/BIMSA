@@ -1,0 +1,44 @@
+rule: B3/S23 \t, network: small_2_layer_seq_p4cnn \n\n
+./predictor_life_simple/hyperparams/small_2_layer_seq_p4cnn.toml
+
+{'info': 'Baseline model with default hyperparameters', 'wandb': {'turn_on': True, 'entity': 'small_2_layer_seq_p4cnn'}, 'dataloader': {'train_batch_size': 8, 'train_num_workers': 4, 'train_shuffle': True, 'test_batch_size': 8, 'test_num_workers': 4, 'test_shuffle': False}, 'optimizer': {'name': 'AdamW', 'args': {'lr': 0.001}}, 'lr_scheduler': {'name': 'CyclicLR', 'args': {'base_lr': 0.001, 'max_lr': 0.05, 'step_size_up': 50, 'step_size_down': 10}}, 'model': {'name': 'SimpleP4CNNSmall'}, 'training': {'epochs': 8, 'r_ratio_start': 1, 'r_ratio_decay': 1e-05, 'r_ratio_min': 0.01}, 'hyperparameters': './predictor_life_simple/hyperparams/small_2_layer_seq_p4cnn.toml', 'data_rule': 'B3/S23', 'data_iters': 200, 'sys_size': 200}
+Starting training...
+
+Picking Dataset: ./predictor_life_simple/datasets/200-200-B3_S23/
+Saving Base Directory: 2025-10-16_17-11-17_small_2_layer_seq_p4cnn__200-200-B3_S23
+
+
+====================================================================================================
+Layer (type:depth-idx)                             Output Shape              Param #
+====================================================================================================
+SimpleP4CNNSmall                                   --                        --
+©À©¤R2Conv: 1-1                                      --                        176
+©¦    ©¸©¤BlocksBasisExpansion: 2-1                   --                        --
+©¦    ©¦    ©¸©¤SingleBlockBasisExpansion: 3-1         --                        --
+©À©¤InnerBatchNorm: 1-2                              --                        --
+©¦    ©¸©¤BatchNorm3d: 2-2                            --                        16
+©À©¤ReLU: 1-3                                        --                        --
+©À©¤R2Conv: 1-4                                      --                        2,816
+©¦    ©¸©¤BlocksBasisExpansion: 2-3                   --                        --
+©¦    ©¦    ©¸©¤SingleBlockBasisExpansion: 3-2         --                        --
+©À©¤InnerBatchNorm: 1-5                              --                        --
+©¦    ©¸©¤BatchNorm3d: 2-4                            --                        16
+©À©¤ReLU: 1-6                                        --                        --
+©À©¤R2Conv: 1-7                                      --                        178
+©¦    ©¸©¤BlocksBasisExpansion: 2-5                   --                        --
+©¦    ©¦    ©¸©¤SingleBlockBasisExpansion: 3-3         --                        --
+====================================================================================================
+Total params: 3,202
+Trainable params: 3,202
+Non-trainable params: 0
+Total mult-adds (M): 0
+====================================================================================================
+Input size (MB): 0.32
+Forward/backward pass size (MB): 0.00
+Params size (MB): 0.00
+Estimated Total Size (MB): 0.32
+====================================================================================================
+Epoch 1/8
+----------
+| 2025-10-16 17:11:38.406696 | Idx:   40/400    | loss: 0.566 | grad_norm: 0.746 | acc: 92.93% |
+| 2025-10-16 17:11:46.725157 | Idx:   80/400    | loss: 0.390 | grad_norm: 0.913 | acc: 95.56% |

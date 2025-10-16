@@ -116,7 +116,7 @@ def save_image(inputs, labels, outputs,
     
     return image
 
-def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
+def plot_and_save_scalar(scalar_dict: dict, base_dir: str) -> None:
     
     # plot the scalar_dict values and store the figure
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
@@ -151,12 +151,15 @@ def plot_scalar(scalar_dict: dict, base_dir: str) -> None:
     ax4.grid()
     ax4.legend()
 
-    # TODO: Update Dataset Name
-    fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
     
     # save plotting results
     if not os.path.exists(f"result/predictor_life_simple/{base_dir}"):
         os.makedirs(f"result/predictor_life_simple/{base_dir}")
+    
+    fig.savefig(f"result/predictor_life_simple/{base_dir}/scalar_dict.png")
+    
+    np.savez(f"result/predictor_life_simple/{base_dir}/training_path.npz", 
+             **scalar_dict)
     
     plt.close()
 
@@ -400,7 +403,7 @@ def train_model(
             if (idx+1) % 40 == 0:
                 print(f"| {datetime.datetime.now()} | Idx: {idx+1:>4d}/{len(train_loader):<6d} "
                       f"| loss: {running_loss/(idx+1):.3f} "
-                      f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |")
+                      f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
         
 
         epoch_loss = running_loss / len(train_loader)
@@ -462,8 +465,11 @@ def train_model(
                 ):
             print("Early Stopped.")
             break
+        else:
+            print(f"\n\n| val_epoch_acc: {val_epoch_acc:.2f}% | epoch: {epoch:>02d} | avg_train_loss: {np.all(scalar_dict['train_loss'][-30:]):.4f} | "
+                  f"avg_train_acc: {np.mean(scalar_dict['train_acc'][-30:]):.4f} | \n\n", flush=True)
     
-    plot_scalar(scalar_dict, save_base_str)
+    plot_and_save_scalar(scalar_dict, save_base_str)
     torch.cuda.empty_cache()
     # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
 
