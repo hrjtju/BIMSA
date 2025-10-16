@@ -14,7 +14,6 @@ wandb
 *.pkl
 *.db
 *.sqlite3
-*.log
 
 
 *.png
