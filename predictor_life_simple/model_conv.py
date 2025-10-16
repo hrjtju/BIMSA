@@ -103,16 +103,16 @@ class MultiScale(nn.Module):
             nn.LeakyReLU(0.1)
         )
         self.conv_3x3_dilated = nn.Sequential(
-            nn.Conv2d(2, 2, kernel_size=5, stride=1, padding=2, dilation=2, padding_mode="circular"),
+            nn.Conv2d(2, 2, kernel_size=3, stride=1, padding=2, dilation=2, padding_mode="circular"),
             nn.BatchNorm2d(2),
             nn.LeakyReLU(0.1)
         )
         
         self.stem = nn.Sequential(
-            nn.Conv2d(int(2*3), 4, kernel_size=5, stride=1, padding=1, padding_mode="circular"),
+            nn.Conv2d(int(2*3), 4, kernel_size=5, stride=1, padding=2, padding_mode="circular"),
             nn.BatchNorm2d(4),
             nn.ReLU(),
-            nn.Conv2d(4, 2, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+            nn.Conv2d(4, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         )
     
     def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch c w h"]:
@@ -219,7 +219,7 @@ class MultiScaleP4(GroupEquivariantCNN):
         in_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])
         hid_type_0 = enn.FieldType(r2_act, 2 * [r2_act.regular_repr])
         hid_type_1 = enn.FieldType(r2_act, 6 * [r2_act.regular_repr])
-        hid_type_2 = enn.FieldType(r2_act, 4 * [r2_act.trivial_repr])
+        hid_type_2 = enn.FieldType(r2_act, 4 * [r2_act.regular_repr])
         out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])
         
         self.conv_3x3 = nn.Sequential(
@@ -239,10 +239,10 @@ class MultiScaleP4(GroupEquivariantCNN):
         )
         
         self.stem = nn.Sequential(
-            enn.R2Conv(hid_type_1, hid_type_2, kernel_size=5, stride=1, padding=1, padding_mode="circular"),
+            enn.R2Conv(hid_type_1, hid_type_2, kernel_size=5, stride=1, padding=2, padding_mode="circular"),
             enn.InnerBatchNorm(hid_type_2),
             enn.ReLU(hid_type_2, inplace=True),
-            enn.R2Conv(hid_type_2, out_type, kernel_size=5, stride=1, padding=1, padding_mode="circular")
+            enn.R2Conv(hid_type_2, out_type, kernel_size=5, stride=1, padding=2, padding_mode="circular")
         )
     
         self.in_type = in_type
@@ -260,8 +260,6 @@ class MultiScaleP4(GroupEquivariantCNN):
             self.conv_3x3_dilated(x).tensor,
         ]
         
-        print(*[i.shape for i in features])
-        
         features = rearrange(features, "n b c w h -> b (n c) w h")
         
         features = enn.GeometricTensor(features, self.hid_type_1)
@@ -274,6 +272,14 @@ class MultiScaleP4(GroupEquivariantCNN):
 
 
 if __name__ == "__main__":
+    import warnings
+    
+    warnings.filterwarnings("ignore")
+    
     model = MultiScaleP4()
-    model(torch.randn(1, 2, 200, 200))
-    model.export()
+    print(model(torch.randn(1, 2, 200, 200)).shape)
+    
+    print("\n\n", flush=True)
+    
+    model = MultiScale()
+    print(model(torch.randn(1, 2, 200, 200)).shape)
