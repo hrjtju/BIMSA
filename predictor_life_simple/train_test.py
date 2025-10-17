@@ -460,13 +460,13 @@ def train_model(
         
         if (val_epoch_acc > 99 
                 and epoch > 3 
-                and np.all(scalar_dict["train_loss"][-30:]) < 1.5e-2
+                and np.mean(scalar_dict["train_loss"][-30:]) < 2e-2
                 and np.mean(scalar_dict["train_acc"][-30:]) > 99
                 ):
             print("Early Stopped.")
             break
         else:
-            print(f"\n\n| val_epoch_acc: {val_epoch_acc:.2f}% | epoch: {epoch:>02d} | avg_train_loss: {np.all(scalar_dict['train_loss'][-30:]):.4f} | "
+            print(f"\n\n| val_epoch_acc: {val_epoch_acc:.2f}% | epoch: {epoch:>02d} | avg_train_loss: {np.mean(scalar_dict['train_loss'][-30:]):.4f} | "
                   f"avg_train_acc: {np.mean(scalar_dict['train_acc'][-30:]):.4f} | \n\n", flush=True)
     
     plot_and_save_scalar(scalar_dict, save_base_str)

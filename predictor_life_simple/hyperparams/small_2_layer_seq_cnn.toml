@@ -2,7 +2,7 @@ info = "Baseline model with default hyperparameters"
 
 [wandb]
 turn_on = true
-entity = "tiny_2_layer_seq_cnn"
+entity = "small_2_layer_seq_cnn"
 
 [dataloader]
 # Training DataLoader

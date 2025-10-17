@@ -2,7 +2,7 @@ info = "basic multiscale model (parallel input head) with weight decay"
 
 [wandb]
 turn_on = true
-entity = "multiscale_0"
+entity = "multiscale_p4"
 
 [dataloader]
 # Training DataLoader
