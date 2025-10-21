@@ -164,7 +164,7 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
 
     def export(self) -> nn.Module:
         """返回普通 nn.Module，等变性固化，推理更快。"""
-        return torch.jit.trace(self, torch.randn(1, 2, 200, 200), _inline=False)
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
 
 
 class SimpleP4CNNTiny(GroupEquivariantCNN):
