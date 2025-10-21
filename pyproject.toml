@@ -19,6 +19,7 @@ dependencies = [
     "pandas>=2.3.2",
     "pyseagull>=1.0.0b4",
     "seaborn>=0.13.2",
+    "thop>=0.1.1.post2209072238",
     "toml>=0.10.2",
     "torch>=2.7.1",
     "torchinfo>=1.8.0",

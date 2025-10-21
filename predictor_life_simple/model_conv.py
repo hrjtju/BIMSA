@@ -164,7 +164,7 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
 
     def export(self) -> nn.Module:
         """返回普通 nn.Module，等变性固化，推理更快。"""
-        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200), _inline=False)
 
 
 class SimpleP4CNNTiny(GroupEquivariantCNN):
@@ -206,7 +206,7 @@ class SimpleP4CNNTiny(GroupEquivariantCNN):
 
     def export(self) -> nn.Module:
         """返回普通 nn.Module，等变性固化，推理更快。"""
-        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200), _inline=False)
 
 class MultiScaleP4(GroupEquivariantCNN):
     __version__ = '0.2.0-p4'
@@ -268,18 +268,31 @@ class MultiScaleP4(GroupEquivariantCNN):
         return features.tensor
     
     def export(self) -> nn.Module:
-        return torch.jit.trace(self, torch.randn(1, 2, 200, 200))
+        return torch.jit.trace(self, torch.randn(1, 2, 200, 200), _inline=False)
 
 
 if __name__ == "__main__":
     import warnings
+    from thop import profile
+    from torchinfo import summary
     
     warnings.filterwarnings("ignore")
     
-    model = MultiScaleP4()
-    print(model(torch.randn(1, 2, 200, 200)).shape)
+    in_data = torch.randn(1, 2, 200, 200)
     
-    print("\n\n", flush=True)
+    class TracedWrapper(torch.nn.Module):
+        def __init__(self, traced):
+            super().__init__()
+            self.traced = traced          # 把 ScriptModule 挂进来
+
+        def forward(self, x):
+            return self.traced(x)
+
     
-    model = MultiScale()
-    print(model(torch.randn(1, 2, 200, 200)).shape)
+    for model in [SimpleCNNSmall, SimpleCNNTiny, MultiScale, SimpleP4CNNSmall, SimpleP4CNNTiny, MultiScaleP4]:
+        print(f"\n\n{model.__name__}")
+        try:
+            summary(model(), input_data=in_data)
+        except:
+            summary(TracedWrapper(model().cpu().export()), input_data=in_data)
+    
