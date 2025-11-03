@@ -64,6 +64,25 @@ class SimpleCNNSmall(nn.Module):
         # x = torch.sigmoid(x)
         return x
 
+class SimpleCNNSmall2Layer(nn.Module):
+    __version__ = '0.1.0'
+
+    def __init__(self):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(2, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular")
+        self.bn1 = nn.BatchNorm2d(8)
+        self.act1 = nn.ReLU()
+        self.conv2 = nn.Conv2d(8, 2, kernel_size=5, stride=1, padding=2, padding_mode="circular")
+        # 可选：self.bn3 = nn.BatchNorm2d(2)
+
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+        x = self.act1(self.bn1(self.conv1(x)))
+        x = self.conv2(x)
+        # 如果用于分类，建议不加 sigmoid
+        # x = torch.sigmoid(x)
+        return x
+
 #TODO: Make kernel larger (to 5 or 7)
 class SimpleCNNTiny(nn.Module):
     __version__ = '0.1.0'

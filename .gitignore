@@ -20,6 +20,6 @@ wandb
 *.jpg
 *.svg
 
-*.ipynb
+# *.ipynb
 
 visualization.md
