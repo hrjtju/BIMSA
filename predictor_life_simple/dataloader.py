@@ -11,10 +11,14 @@ class LifeGameDataset(Dataset):
             file_list (List[str]): List of file paths to use in the dataset.
         """
         self.file_list = file_list
+        self.visible_trajectories = 1
         self.len_per_file = np.load(self.file_list[0]).shape[0]
 
+    def add_trajectory(self):
+        self.visible_trajectories += 1
+    
     def __len__(self) -> int:
-        return len(self.file_list) * self.len_per_file
+        return self.visible_trajectories * self.len_per_file
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         file_idx = idx // self.len_per_file
