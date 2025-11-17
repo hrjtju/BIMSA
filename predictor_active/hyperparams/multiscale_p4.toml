@@ -1,0 +1,44 @@
+info = "basic multiscale model (parallel input head) with weight decay"
+
+[wandb]
+turn_on = true
+entity = "multiscale_p4"
+
+[dataloader]
+# Training DataLoader
+train_batch_size = 8
+train_num_workers = 4
+train_shuffle = true
+# Validation DataLoader
+test_batch_size = 8
+test_num_workers = 4
+test_shuffle = false
+
+# Optimizer
+[optimizer]
+name = "AdamW"
+    [optimizer.args]
+    # Parameters for AdamW optimizer
+    lr = 0.001
+    weight_decay = 1e-7
+
+# Learning Rate Scheduler
+[lr_scheduler]
+name = "CyclicLR"
+    [lr_scheduler.args]
+    # Parameters for CyclicLR scheduler
+    base_lr=0.001
+    max_lr=0.05
+    step_size_up=70
+    step_size_down=20
+
+[model]
+name = "MultiScaleP4"
+
+# Training parameters
+[training]
+epochs = 8
+r_ratio_start = 1
+r_ratio_decay = 1e-5
+r_ratio_min = 0.01
+
