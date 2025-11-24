@@ -8,7 +8,6 @@ import torch
 from torch import Tensor
 from tqdm import tqdm
 import wandb
-from dataloader import get_dataloader
 import model_conv
 import matplotlib.pyplot as plt
 from matplotlib import axes
@@ -59,45 +58,41 @@ def save_image(inputs, labels, outputs,
     random_index = np.random.randint(0, inputs.shape[0])
     
     x_t0: Float[Array, "w h"] = inputs[random_index, 0].cpu() * 256
-    x_t1: Float[Array, "w h"] = inputs[random_index, 1].cpu() * 256
     y_t1: Float[Array, "w h"] = labels_[random_index, 0].cpu() * 256
     xp_t0: Float[Array, "w h"] = outputs[random_index, 0].cpu() * 256
 
     
-    fig, ((ax1, ax2, ax5), (ax3, ax4, ax6)) = plt.subplots(2, 3, figsize=(12, 8), dpi=200)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(9, 9), dpi=200)
     
     ax1: axes.Axes
     ax2: axes.Axes
     ax3: axes.Axes
     ax4: axes.Axes
-    ax5: axes.Axes
-    ax6: axes.Axes
     
     ax1.axis("off")
     ax1.imshow(x_t0, cmap='gray')
     ax1.set_title("$x_{t}$\nTrue System State at time t")
-    ax2.axis("off")
-    ax2.imshow(x_t1, cmap='gray')
-    ax2.set_title("$x_{t+1}$\nTrue System State at time t+1")
-    ax4.axis("off")
-    ax4.imshow(xp_t0, cmap='gray')
-    ax4.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
-
+    
     ax3.axis("off")
-    ax3.imshow(y_t1, cmap='gray')
-    ax3.set_title("$x_{t+2}$\nTrue System State at time t+2")
-    ax5.axis("off")
-    ax5.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax5.set_title("$x_{t+1} - f(x_{t+1})$\nPrediction Error")
+    ax3.imshow(xp_t0, cmap='gray')
+    ax3.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
+
+    ax2.axis("off")
+    ax2.imshow(y_t1, cmap='gray')
+    ax2.set_title("$x_{t+2}$\nTrue System State at time t+2")
+    
+    ax4.axis("off")
+    ax4.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
+    ax4.set_title("$x_{t+1} - f(x_{t+1})$\nPrediction Error")
     if torch.norm(y_t1 - xp_t0) < 1e-6:
         # display "ALL CORRECT" in the center of the figure
-        ax5.text(0.5, 0.5, "ALL CORRECT", 
-                 fontsize=20, color='green', ha='center', va='center', transform=ax5.transAxes
+        ax4.text(0.5, 0.5, "ALL CORRECT", 
+                 fontsize=20, color='green', ha='center', va='center', transform=ax4.transAxes
                  )
     
-    ax6.axis("off")
-    ax6.imshow(x_t1 - x_t0, cmap="RdBu", vmin=-1, vmax=1)
-    ax6.set_title("$x_{t+1} - x_{t}$\nDifference between $x_{t+1}$ and $x_{t}$")
+    # ax6.axis("off")
+    # ax6.imshow(x_t1 - x_t0, cmap="RdBu", vmin=-1, vmax=1)
+    # ax6.set_title("$x_{t+1} - x_{t}$\nDifference between $x_{t+1}$ and $x_{t}$")
 
     # convert plotting results to array format
     buf = BytesIO()
@@ -253,59 +248,61 @@ def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"],
                 
 
 # Training function
-def train_model(
-                args: dict = None
+def train_and_evaluate(
+                device: torch.device,
+                model: nn.Module, 
+                train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]],
+                test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]], 
+                round_id: int,
+                rule_data_str: str,
+                dataset_dir: str,
+                start_time_str: str,
+                train_args: dict = None
                 ):
     
-    rule_data_str = f"{args['sys_size']}-{args['data_iters']}-{args['data_rule'].replace('/', '_')}"
-    dataset_dir = f"{bimsa_life_dir}/{rule_data_str}/"
-    start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}".split('.')[0]
-    save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
+    save_base_str = f"{start_time_str}_AL_{train_args['wandb']['entity']}__{rule_data_str}/round_{round_id:>02d}"
+    
+    if not os.path.exists(f"result/predictor_life_simple/{save_base_str}"):
+        os.makedirs(f"result/predictor_life_simple/{save_base_str}")
     
     print(f"\nPicking Dataset: {dataset_dir}\nSaving Base Directory: {save_base_str}\n\n")
     
-    if args["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=args["wandb"]["entity"])
+    if train_args["wandb"]["turn_on"]:
+        wandb.init(project="predictor_life_simple", name=train_args["wandb"]["entity"])
     else:
         wandb.init(mode="disabled")
     
-    # TODO: Update Dataset Name
-    train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
-        data_dir=dataset_dir,
-        batch_size=args["dataloader"]["train_batch_size"],
-        shuffle=args["dataloader"]["train_shuffle"],
-        num_workers=args["dataloader"]["train_num_workers"],
-        split='train'
-    )
+    # train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
+    #     data_dir=dataset_dir,
+    #     batch_size=args["dataloader"]["train_batch_size"],
+    #     shuffle=args["dataloader"]["train_shuffle"],
+    #     num_workers=args["dataloader"]["train_num_workers"],
+    #     split='train'
+    # )
 
-    # TODO: Update Dataset Name
-    test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
-        data_dir=dataset_dir,
-        batch_size=args["dataloader"]["test_batch_size"],
-        shuffle=args["dataloader"]["test_shuffle"],
-        num_workers=args["dataloader"]["test_num_workers"],
-        split='test'
-    )
+    # test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
+    #     data_dir=dataset_dir,
+    #     batch_size=args["dataloader"]["test_batch_size"],
+    #     shuffle=args["dataloader"]["test_shuffle"],
+    #     num_workers=args["dataloader"]["test_num_workers"],
+    #     split='test'
+    # )
         
     # Define device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model_class = getattr(model_conv, args["model"]["name"])
     
-    # Move model to device
-    model: nn.Module|GroupEquivariantCNN = model_class()
 
-    try:
-        summary(model, input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
-    except:
-        summary(model.cpu().export(), input_size=(1, 2, args['sys_size'], args['sys_size']), verbose=1)
+    if round_id == 1:
+        try:
+            summary(model, input_size=(1, 1, train_args['sys_size'], train_args['sys_size']), verbose=1)
+        except:
+            summary(model.cpu().export(), input_size=(1, 1, train_args['sys_size'], train_args['sys_size']), verbose=1)
     
     model = model.to(device)
     
     # model = torch.compile(model)
     
     # Define loss function and optimizer
-    optimizer = getattr(optim, args["optimizer"]["name"])(model.parameters(), **args["optimizer"]["args"])
+    optimizer = getattr(optim, train_args["optimizer"]["name"])(model.parameters(), **train_args["optimizer"]["args"])
 
     onehot_fn = partial(torch.nn.functional.one_hot, num_classes=2)
     one_hot_target = lambda x: onehot_fn(x.reshape(-1).long()).float()
@@ -313,15 +310,15 @@ def train_model(
     # TODO: 需要将模型训练切分为两个阶段：第一阶段训练 Encoder 和 Decoder，缩小重构损失
     # TODO: 第二阶段训练 Dynamics 模块，缩小动力学损失
     
-    match args["lr_scheduler"]["name"]:
+    match train_args["lr_scheduler"]["name"]:
         case "None":
             use_lr_scheduler = False
         case _:
             use_lr_scheduler = True
-            scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
+            scheduler = getattr(optim.lr_scheduler, train_args["lr_scheduler"]["name"])(optimizer, **train_args["lr_scheduler"]["args"])
 
     
-    for epoch in range(epochs:=args["training"]["epochs"]):
+    for epoch in range(epochs:=train_args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
         print("-" * 10)
 
@@ -336,7 +333,7 @@ def train_model(
         for idx, (inputs, labels) in enumerate(train_loader):
             # Zero the parameter gradients
             optimizer.zero_grad()
-
+            
             # Forward pass
             inputs_o, labels_o = inputs.clone(), labels.clone()
             inputs_t, labels_t = apply_translation(inputs_o, labels_o)
@@ -344,10 +341,13 @@ def train_model(
             
             # Concatenate original, translated, and rotated inputs and labels
             x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
-            inputs: Float[Array, "batch 2 w h"] = x.to(device)
+            inputs: Float[Array, "batch 1 w h"] = x.to(device)
             labels: Float[Array, "batch 1 w h"] = y.to(device)
             
             outputs = model(inputs.to(device))
+            
+            assert torch.isnan(outputs).sum() == 0, print(outputs)
+            
             outputs_logits = rearrange(outputs, "b c w h -> (b w h) c")
             
             #TODO: add L1 loss
@@ -356,11 +356,18 @@ def train_model(
                 if 'weight' in name:
                     l1_reg = l1_reg + torch.linalg.vector_norm(param, ord=1, dim=None)
             
+            assert torch.isnan(l1_reg).sum() == 0, print(l1_reg)
+            
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
-            d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
-                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + 1e-5 * l1_reg
+            d_loss = cross_entropy(softmax(outputs_logits, dim=-1), one_hot_target(labels.to(device)), weight=labels.numel() \
+                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + 5e-5 * l1_reg
 
+            assert torch.isnan(d_loss).sum() == 0, f"d_loss: \n{d_loss};\n output: \n{softmax(outputs_logits, dim=-1)};\n targets: \n{one_hot_target(labels.to(device))};\n l1_regulization_loss: {l1_reg}"
+            
+            if d_loss == torch.nan:
+                print(outputs_logits, labels, inputs)
+            
             d_loss.backward()
             
             # apply gradient clipping
@@ -414,9 +421,9 @@ def train_model(
             best_acc = epoch_acc
             # Save the model checkpoint if needed
             torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
-                       f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
+                       f"best_simple_life_{model.__class__.__name__}_{model.__class__.__version__}.pth")
         torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
-                   f"last_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
+                   f"last_simple_life_{model.__class__.__name__}_{model.__class__.__version__}.pth")
 
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%", flush=True)
@@ -472,6 +479,8 @@ def train_model(
     plot_and_save_scalar(scalar_dict, save_base_str)
     torch.cuda.empty_cache()
     # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
+    
+    return model, np.mean(scalar_dict["train_loss"][-30:]), np.mean(scalar_dict["val_acc"][-30:])
 
 
 if __name__ == "__main__":
@@ -491,4 +500,3 @@ if __name__ == "__main__":
     print("Starting training...")
     # Call the training function
     
-    train_model(args_dict)

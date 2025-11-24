@@ -1,0 +1,18 @@
+set BIMSA_LIFE_DIR=.\predictor_life_simple\datasets
+
+python .\predictor_life_simple\train_test.py -r "B1/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B2/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B3/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B4/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B5/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B6/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B7/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B8/S" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S1" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S2" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S3" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S4" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S5" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S6" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S7" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
+python .\predictor_life_simple\train_test.py -r "B/S8" -p ".\predictor_life_simple\hyperparams\small_2_layer_seq_p4cnn.toml"
