@@ -1,3 +1,4 @@
+from itertools import accumulate
 import os
 from typing import Literal, Tuple, List
 import numpy as np
@@ -11,13 +12,19 @@ class LifeGameDataset(Dataset):
             file_list (List[str]): List of file paths to use in the dataset.
         """
         self.file_list = file_list
-        self.len_per_file = np.load(self.file_list[0]).shape[0]
+        self.arr_list = [np.load(i) for i in file_list]
+        self.data_len_ls = [i.shape[0] for i in self.arr_list]
+        self.len_prefix_sum = list(accumulate(self.data_len_ls))
+        
+    def locate_idx(self, i: int) -> int:
+        res_arr = [i-k for k in self.len_prefix_sum if k <= i]
+        return len(res_arr) - 1
     
     def __len__(self) -> int:
-        return len(self.file_list) * self.len_per_file
+        return self.len_prefix_sum[-1]
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        file_idx = idx // self.len_per_file
+        file_idx = self.locate_idx(idx)
         file_path = self.file_list[file_idx]
         data = np.load(file_path)  # Shape: [T, N, N]
         t = np.random.randint(0, data.shape[0] - 1)
@@ -62,3 +69,12 @@ def get_dataloader(data_dir,
     dataset = LifeGameDataset(file_list)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     return dataloader
+
+
+if __name__ == "__main__":
+    data_dir = r"D:\Internship\bimsa\predictor_life_simple\datasets\200-100-B3_S23"
+    dataset = LifeGameDataset(os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.npy'))
+    
+    print(dataset.__len__)
+    print(dataset.data_len_ls)
+    print(dataset.len_prefix_sum)

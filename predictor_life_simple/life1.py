@@ -3,7 +3,7 @@ import argparse
 import os
 import random
 import re
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 import numpy as np
 import matplotlib.pyplot as plt 
 import matplotlib.animation as animation
@@ -93,8 +93,43 @@ def board_init_monkey_patch(self, size=(100, 100), p_pos=0.1):
     w, h = self.size
     self.state = np.random.choice([True, False], w*h, p=[p_pos, 1-p_pos]).reshape(w, h)
 
+def simulator_run_monkey_patch(self, rule: Callable, iters: int, **kwargs) -> dict:
+        """Run the simulation for a given number of iterations
+
+        Parameters
+        ----------
+        rule : callable
+            Callable that takes in an array and returns an array of the same
+            shape.
+        iters : int
+            Number of iterations to run the simulation.
+
+        Returns
+        -------
+        dict
+           Computed statistics for the simulation run
+        """
+        layout = self.board.state.copy()
+
+        # Append the initial state
+        self.history.append(layout)
+
+        # Run simulation
+        for i in range(iters):
+            layout = rule(layout, **kwargs)
+            
+            if np.sum(np.abs(layout ^ self.history[-1])) < 1e-2:
+                break
+            
+            self.history.append(layout)
+
+        self.stats = self.compute_statistics(self.get_history())
+        return self.stats
+
+
 life_rule = life_rule_monkey_patch
 sgl.Board.__init__ = board_init_monkey_patch
+sgl.Simulator.run = simulator_run_monkey_patch
 
 slf.Pulsar.size = (17, 17)
 slf.FigureEight.size = (6, 6)
@@ -133,7 +168,7 @@ def main():
     rand_loc = lambda c: (random.randint(*min_max(c, 0)), random.randint(*min_max(c, 1)))
     add_rand_loc = lambda c: board.add(c(), loc=rand_loc(c))
     
-    for i in range(1, 21):
+    for i in range(1, 101):
         board = sgl.Board((args.size, args.size), p_pos=0.5)
         
         for _ in range(int(args.size**0.25)+1):
