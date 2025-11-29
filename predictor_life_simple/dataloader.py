@@ -4,6 +4,12 @@ from typing import Literal, Tuple, List
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms.v2 as v2
+
+transform = v2.Compose([
+    v2.RandomErasing(0.8, (5e-4, 1e-3), value=0.5),
+    v2.RandomErasing(0.8, (5e-4, 1e-3), value=0.5),
+])
 
 class LifeGameDataset(Dataset):
     def __init__(self, file_list: List[str]):
@@ -32,6 +38,10 @@ class LifeGameDataset(Dataset):
                           [data[t], data[t + 1]])
         x = (x / (dim:=(255 if x.max() > 100 else 1)))[None, ...]
         y = (x_1 / dim)
+        
+        #! Data Augmentation
+        # x = transform(x)
+        
         return x, y
 
 def get_dataloader(data_dir, 

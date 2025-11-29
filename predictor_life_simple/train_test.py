@@ -3,6 +3,7 @@ import datetime
 from functools import partial
 from typing import Iterable, Tuple
 import numpy as np
+from seagull import Simulator
 import toml
 import torch
 from torch import Tensor
@@ -18,6 +19,7 @@ import pandas as pd
 import warnings
 
 from model_conv import GroupEquivariantCNN
+from rule_simulator import RuleSimulatorStats
 
 import torch.nn as nn
 import torch.optim as optim
@@ -317,6 +319,8 @@ def train_model(
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
     
+    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_'))
+    
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
         print("-" * 10)
@@ -333,6 +337,8 @@ def train_model(
             # Zero the parameter gradients
             optimizer.zero_grad()
 
+            global_idx = epoch * len(train_loader) + idx
+            
             # Forward pass
             inputs_o, labels_o = inputs.clone(), labels.clone()
             inputs_t, labels_t = apply_translation(inputs_o, labels_o)
@@ -382,8 +388,7 @@ def train_model(
             scalar_dict["train_acc"].append(item_acc)
             scalar_dict["grad_norm"].append(norm.item())
             
-            if idx % 100 == 0:
-                
+            if (idx+1) % 100 == 0:
                 # 将 image_grid 异步存储为 matplotlib 图像
                 image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
                            idx, epoch,
@@ -393,19 +398,25 @@ def train_model(
                 wandb.log({
                     "train_sample": wandb.Image(image_grid),
                 })
-
+                
+            # -------- RULE STATS --------
+            if (idx+1) % 200 == 0:
+                rule_stats.load_model(model)
+                stat_ls = rule_stats.get_transform_stats(iter_idx=global_idx//200)
+                rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}")
+                
+                del rule_stats
+                
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
-            if (idx+1) % 40 == 0:
+            if (idx+1) % 50 == 0:
                 print(f"| {datetime.datetime.now()} | Idx: {idx+1:>4d}/{len(train_loader):<6d} "
                       f"| loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
-        
 
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
             
-        # TODO: Update Dataset Name
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             # Save the model checkpoint if needed
@@ -413,7 +424,6 @@ def train_model(
                        f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
         torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
                    f"last_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
-
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%", flush=True)
         
@@ -430,7 +440,6 @@ def train_model(
 
                 outputs = model(inputs)
                 
-                # TODO: Check.
                 predicted: torch.Tensor|Float[Array, "batch 1 w h"] = (outputs.argmax(dim=1)).long()
                 val_total += labels.numel()
                 val_correct += predicted.eq(labels).sum().item()
@@ -438,7 +447,6 @@ def train_model(
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
                 
                 if idx % 100 == 0:
-                    
                         image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
                            idx, epoch,
                            save_base_str
