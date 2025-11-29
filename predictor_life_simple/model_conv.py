@@ -64,6 +64,37 @@ class SimpleCNNSmall(nn.Module):
         # x = torch.sigmoid(x)
         return x
 
+class SimpleCNNSmall_5Layer(nn.Module):
+    __version__ = '0.1.0'
+
+    def __init__(self):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(1, 4, kernel_size=5, stride=1, padding=2, padding_mode="circular")
+        self.bn1 = nn.BatchNorm2d(4)
+        self.act1 = nn.ReLU()
+        self.conv2 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        self.bn2 = nn.BatchNorm2d(4)
+        self.act2 = nn.ReLU()
+        self.conv3 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        self.bn3 = nn.BatchNorm2d(4)
+        self.act3 = nn.ReLU()
+        self.conv4 = nn.Conv2d(4, 4, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        self.bn4 = nn.BatchNorm2d(4)
+        self.act4 = nn.ReLU()
+        self.conv5 = nn.Conv2d(4, 2, kernel_size=3, stride=1, padding=1, padding_mode="circular")
+        # 可选：self.bn3 = nn.BatchNorm2d(2)
+
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+        x = self.act1(self.bn1(self.conv1(x) + x))
+        x = self.act2(self.bn2(self.conv2(x) + x))
+        x = self.act3(self.bn3(self.conv3(x) + x))
+        x = self.act4(self.bn4(self.conv4(x) + x))
+        x = self.conv5(x)
+        # 如果用于分类，建议不加 sigmoid
+        # x = torch.sigmoid(x)
+        return x
+
 class SimpleCNNSmall_4Layer(nn.Module):
     __version__ = '0.1.0'
 

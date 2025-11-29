@@ -402,10 +402,8 @@ def train_model(
             # -------- RULE STATS --------
             if (idx+1) % 200 == 0:
                 rule_stats.load_model(model)
-                stat_ls = rule_stats.get_transform_stats(iter_idx=global_idx//200)
-                rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}")
-                
-                del rule_stats
+                stat_ls = rule_stats.get_transform_stats()
+                rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
                 
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             

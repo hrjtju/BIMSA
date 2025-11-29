@@ -169,7 +169,7 @@ def main():
     add_rand_loc = lambda c: board.add(c(), loc=rand_loc(c))
     
     for i in range(1, 101):
-        board = sgl.Board((args.size, args.size), p_pos=0.5)
+        board = sgl.Board((args.size, args.size), p_pos=0.8)
         
         for _ in range(int(args.size**0.25)+1):
             add_rand_loc(slf.Pulsar)
