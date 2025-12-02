@@ -1,13 +1,14 @@
 from collections import Counter, OrderedDict
 from itertools import product
 import os
+import random
 from typing import Callable, Dict, List, Mapping, Optional
 from functools import partial, reduce
 from operator import add
 
 from matplotlib import pyplot as plt
 import torch
-from torch import nn, Tensor
+from torch import nn, Tensor, tensor
 import einops
 from tqdm import tqdm
 
@@ -188,18 +189,26 @@ class RuleSimulatorDict:
     def construct_motif(self):
         ls = ([0, 1] for _ in range(self.n*self.n))
 
-        for i in product(*ls):
-            arr = torch.tensor(list(i)).reshape(1, 3, 3)
+        # for i in product(*ls):
+        for i in range(9):
+            ls = ([0 for _ in range(i)] + [1 for _ in range(8-i)])
+            random.shuffle(ls)
+            
+            t0 = tensor(ls[:4] + [0] + ls[4:], dtype=float).reshape(1, 3, 3)
+            t1 = tensor(ls[:4] + [1] + ls[4:], dtype=float).reshape(1, 3, 3)
+            
             if self.indicator_dataset is None:
-                self.indicator_dataset = arr
+                self.indicator_dataset = torch.concatenate([t0, t1])
             else:
-                self.indicator_dataset = torch.concatenate([self.indicator_dataset, arr])
+                self.indicator_dataset = torch.concatenate([self.indicator_dataset, t0, t1])
         self.indicator_dataset = self.indicator_dataset[:, None, ...].float()
         
         self.indicator_dataset.requires_grad_(False)
 
     @torch.no_grad()
     def get_rule_from_nn(self, predictor: nn.Module, epsilon: float = 0.1):
+        predictor = predictor.to(torch.device("cuda"))
+        
         out_ = torch.softmax(predictor(self.indicator_dataset.to(torch.device("cuda"))), dim=1).cpu()
         stack_arr = torch.cat([self.indicator_dataset, out_[:, 0:1, ...]], dim=1)
         
@@ -239,11 +248,16 @@ if __name__ == "__main__":
     
     param_file = r"D:\Internship\bimsa\result\predictor_life_simple\2025-11-29_23-27-49_small_4_layer_seq_cnn__200-200-B36_S23\best_simple_life_SimpleCNNSmall_5Layer_0.1.0.pth"
     
-    simulator = RuleSimulatorStats("B36/S23")
+    # simulator = RuleSimulatorStats("B36/S23")
     
-    simulator.load_model(model, param_file)
+    # simulator.load_model(model, param_file)
     
-    stat_ls = simulator.get_transform_stats2()
+    # stat_ls = simulator.get_transform_stats2()
     
-    simulator.plot_transform_stats(stat_ls, "./")
+    # simulator.plot_transform_stats(stat_ls, "./")
+    
+    simulator = RuleSimulatorDict()
+    simulator.get_rule_from_nn(model, 0.4)
+    
+    print(*list(simulator.rule_d.items()), sep="\n")
     
