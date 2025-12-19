@@ -212,6 +212,7 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
     def __init__(self):
         super().__init__()
 
+        # TODO: Change N to 8 to enable 8-way rotation invariance
         r2_act = gspaces.Rot2dOnR2(N=4)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
