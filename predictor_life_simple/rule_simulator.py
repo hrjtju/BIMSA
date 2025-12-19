@@ -2,7 +2,7 @@ from collections import Counter, OrderedDict
 from itertools import product
 import os
 import random
-from typing import Callable, Dict, List, Mapping, Optional
+from typing import Callable, Dict, List, Mapping, Optional, Tuple
 from functools import partial, reduce
 from operator import add
 
@@ -128,14 +128,14 @@ class RuleSimulatorStats:
         
         for counter in counters:
             items = sorted(list(counter.items()), key=lambda x:x[0])
-            print(items)
+            # print(items)
             
             x = list(range(9))
             y = [counter.get(i, 0) for i in x]
             stats.append((x,y))
         
         
-        print(counters, stats, sep="\n", end="\n\n")
+        # print(counters, stats, sep="\n", end="\n\n")
         
         plt.figure(dpi=200, figsize=(8, 4))
 
@@ -159,6 +159,36 @@ class RuleSimulatorStats:
             plt.savefig(os.path.join(out_dir, f"stats_out-{self.rule.replace('/', '_')}-{self.iter_idx:>04}.svg"), format="svg")
         
         plt.close()
+        
+        return counters
+
+    def infer_rule_str(self, counters, acc) -> Tuple[List, List]:
+        dd, dl = sum(counters[0].values()), sum(counters[1].values())
+        ld, ll = sum(counters[2].values()), sum(counters[3].values())
+        
+        d_th = (1-acc)*(dd+dl)
+        l_th = (1-acc)*(ld+ll)
+        
+        d_all = counters[0] + counters[1]
+        l_all = counters[2] + counters[3]
+        
+        filtered_b = sorted(list(filter(lambda x:x[1]>0.6*d_th, d_all.items())), key=lambda x:x[0])
+        filtered_s = sorted(list(filter(lambda x:x[1]>0.6*l_th, l_all.items())), key=lambda x:x[0])
+        
+        born = []
+        survive = []
+
+        list_str = lambda x:list(map(lambda k:str(int(k)), x))
+        
+        for i,_ in filtered_b:
+            if counters[1][i] > 10 * counters[0][i]:
+                born.append(i)
+
+        for i,_ in filtered_s:
+            if counters[3][i] > 10 * counters[2][i]:
+                survive.append(i)
+        
+        return list_str(born), list_str(survive)
 
 listmap = lambda f,l: list(map(f,l))
 

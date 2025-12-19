@@ -403,7 +403,11 @@ def train_model(
             if (idx+1) % 200 == 0:
                 rule_stats.load_model(model)
                 stat_ls = rule_stats.get_transform_stats()
-                rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
+                counters = rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
+                
+                # TODO: Add Rule Searching
+                b, s = rule_stats.infer_rule_str(counters, item_acc)
+                print(f"Inferred Rule: B{''.join(b)}/S{''.join(s)}\n")
                 
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
@@ -460,8 +464,7 @@ def train_model(
         
         wandb.log({"val_epoch_acc": val_epoch_acc})
         
-        if (val_epoch_acc > 99 
-                and epoch > 3 
+        if (val_epoch_acc > 99
                 and np.mean(scalar_dict["train_loss"][-30:]) < 2e-2
                 and np.mean(scalar_dict["train_acc"][-30:]) > 99
                 ):
