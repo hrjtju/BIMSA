@@ -56,7 +56,7 @@ class RuleSimulatorStats:
     def __init__(self, 
                  rule: str = None, 
                  ):
-        
+        self.d_th, self.l_th = None, None
         self.device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
         
         self.count_ker = CountingCNN().to(self.device)
@@ -104,6 +104,9 @@ class RuleSimulatorStats:
             
             inputs = inputs.to(self.device)
             
+            #! perturb inputs
+            inputs = (inputs + 0.5 * torch.randn_like(inputs)).long().clamp(0, 1).float()
+            
             counts = self.count_ker(inputs)
             pred = self.model(inputs).argmax(dim=1, keepdim=True)
             
@@ -141,6 +144,8 @@ class RuleSimulatorStats:
 
         plt.suptitle(f"Stats of neural network predicted dynamics w.r.t. rule {self.rule}")
 
+        tmp_ls = [self.d_th, self.l_th]
+        
         for i in range(2):
             plt.subplot(1, 2, i+1)
             plt.bar(*stats[2*i], width=0.4, align="center", label="$\\rightarrow$ dead", alpha=0.5)
@@ -148,6 +153,10 @@ class RuleSimulatorStats:
             plt.xticks(range(9), range(9))
             plt.xlabel("# Living Neighbors")
             plt.ylabel("Freq.")
+            
+            if tmp_ls[i] is not None:
+                plt.axhline(y=tmp_ls[i], color='r', linestyle='--', label="Rule Acceptance Threshold")
+            
             plt.semilogy()
             plt.grid()
             plt.legend()
@@ -166,29 +175,32 @@ class RuleSimulatorStats:
         dd, dl = sum(counters[0].values()), sum(counters[1].values())
         ld, ll = sum(counters[2].values()), sum(counters[3].values())
         
-        d_th = (1-acc)*(dd+dl)
-        l_th = (1-acc)*(ld+ll)
+        th_ratio = 0.6
+        self.d_th = int(th_ratio * (1-acc/100) * (dd+dl))
+        self.l_th = int(th_ratio * (1-acc/100) * (ld+ll))
+        
+        print(dd, dl, ld, ll, self.d_th, self.l_th, acc)
         
         d_all = counters[0] + counters[1]
         l_all = counters[2] + counters[3]
         
-        filtered_b = sorted(list(filter(lambda x:x[1]>0.6*d_th, d_all.items())), key=lambda x:x[0])
-        filtered_s = sorted(list(filter(lambda x:x[1]>0.6*l_th, l_all.items())), key=lambda x:x[0])
+        filtered_b = sorted(list(filter(lambda x:x[1]>self.d_th, d_all.items())), key=lambda x:x[0])
+        filtered_s = sorted(list(filter(lambda x:x[1]>self.l_th, l_all.items())), key=lambda x:x[0])
         
-        born = []
-        survive = []
+        self.born = []
+        self.survive = []
 
         list_str = lambda x:list(map(lambda k:str(int(k)), x))
         
         for i,_ in filtered_b:
             if counters[1][i] > 10 * counters[0][i]:
-                born.append(i)
+                self.born.append(i)
 
         for i,_ in filtered_s:
             if counters[3][i] > 10 * counters[2][i]:
-                survive.append(i)
+                self.survive.append(i)
         
-        return list_str(born), list_str(survive)
+        return list_str(self.born), list_str(self.survive)
 
 listmap = lambda f,l: list(map(f,l))
 

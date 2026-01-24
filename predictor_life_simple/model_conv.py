@@ -206,14 +206,14 @@ class MultiScale(nn.Module):
 
 class SimpleP4CNNSmall(GroupEquivariantCNN):
     
-    __version__ = '0.1.0-p4'
+    __version__ = '0.5.0-p4'
 
     # ---------- 内部工具 ----------
     def __init__(self):
         super().__init__()
 
         # TODO: Change N to 8 to enable 8-way rotation invariance
-        r2_act = gspaces.Rot2dOnR2(N=4)
+        r2_act = gspaces.Rot2dOnR2(N=8)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
         hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
@@ -255,7 +255,7 @@ class SimpleP4CNNSmalL2Layer(GroupEquivariantCNN):
     def __init__(self):
         super().__init__()
 
-        r2_act = gspaces.Rot2dOnR2(N=4)
+        r2_act = gspaces.Rot2dOnR2(N=8)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
         hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
@@ -292,7 +292,7 @@ class SimpleP4CNNTiny(GroupEquivariantCNN):
     def __init__(self):
         super().__init__()
 
-        r2_act = gspaces.Rot2dOnR2(N=4)
+        r2_act = gspaces.Rot2dOnR2(N=8)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
         hid_type = enn.FieldType(r2_act, 1 * [r2_act.regular_repr])   
@@ -331,7 +331,7 @@ class MultiScaleP4(GroupEquivariantCNN):
     def __init__(self):
         super().__init__()
         
-        r2_act = gspaces.Rot2dOnR2(N=4)
+        r2_act = gspaces.Rot2dOnR2(N=8)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
         hid_type_0 = enn.FieldType(r2_act, 2 * [r2_act.regular_repr])
