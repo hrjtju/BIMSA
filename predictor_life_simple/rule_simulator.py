@@ -91,7 +91,7 @@ class RuleSimulatorStats:
     def get_transform_stats(self):
         
         test_loader = get_dataloader(
-            data_dir=f"D:\\Internship\\bimsa\\predictor_life_simple\\datasets\\200-200-{self.rule.replace('/', '_')}",
+            data_dir=f"./predictor_life_simple/datasets/200-200-{self.rule.replace('/', '_')}",
             batch_size=64,
             shuffle=True,
             num_workers=0,
