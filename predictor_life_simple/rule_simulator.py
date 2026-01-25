@@ -197,6 +197,21 @@ class RuleSimulatorStats:
         d_all = counters[0] + counters[1]
         l_all = counters[2] + counters[3]
         
+        priors = {
+            "d": {(counters[0].get(k, 0))/(v) for (k,v) in d_all.items()},
+            "l": {(counters[2].get(k, 0))/(v) for (k,v) in l_all.items()},
+        }
+        
+        likelihood = {
+            "d": {k:(v)/(dd+dl) for (k,v) in d_all.items()},
+            "l": {k:(v)/(dd+dl) for (k,v) in l_all.items()},
+        }
+        
+        import pprint
+        
+        pprint(priors)
+        pprint(likelihood)
+
         filtered_b = sorted(list(filter(lambda x:x[1]>self.d_th, d_all.items())), key=lambda x:x[0])
         filtered_s = sorted(list(filter(lambda x:x[1]>self.l_th, l_all.items())), key=lambda x:x[0])
         
