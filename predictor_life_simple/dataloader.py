@@ -13,9 +13,7 @@ transform = v2.Compose([
 
 def precompute_transform_table(K, p, M=2**32):
     """
-    预计算累积概率的整数阈值表
-    K: 最大时间步 (K = T-2)
-    M: 均匀整数的上界 (exclusive)
+    compute the thresholds for transforming uniform integers to time steps
     """
     total_weight = 1 - (1-p)**(K+1)
     thresholds = []
@@ -23,15 +21,14 @@ def precompute_transform_table(K, p, M=2**32):
     
     for t in range(K+1):
         cum_prob += (1-p)**t
-        # 将累积概率映射到 [0, M) 的整数
+        
         thresholds.append(int(cum_prob / total_weight * M))
     
     return thresholds  # 长度为 K+1 的升序数组
 
 def transform_uniform_to_time(u, thresholds):
     """
-    将均匀整数 u 转换为时间步 t
-    u: 从 Uniform{0, ..., M-1} 采样的整数
+    transform uniform integer u to truncated geometric distribution
     """
     # 二分查找：找到第一个满足 u < thresholds[t] 的 t
     import bisect
@@ -48,6 +45,8 @@ class LifeGameDataset(Dataset):
         self.data_len_ls = [i.shape[0] for i in self.arr_list]
         self.len_prefix_sum = list(accumulate(self.data_len_ls))
         
+        self.transform_tables = {}
+        
     def locate_idx(self, i: int) -> int:
         res_arr = [i-k for k in self.len_prefix_sum if k <= i]
         return len(res_arr) - 1
@@ -59,7 +58,14 @@ class LifeGameDataset(Dataset):
         file_idx = self.locate_idx(idx)
         file_path = self.file_list[file_idx]
         data = np.load(file_path)  # Shape: [T, N, N]
-        t = np.random.randint(0, data.shape[0] - 1)
+        
+        
+        a = np.random.geometric(0.5).astype(np.int32)
+        if a >= data.shape[0] - 1:
+            t = np.random.randint(0, data.shape[0] - 1)
+        else:
+            t = a
+        
         x, x_1 = map(lambda x: torch.tensor(x, dtype=torch.float32), 
                           [data[t], data[t + 1]])
         x = (x / (dim:=(255 if x.max() > 100 else 1)))[None, ...]
