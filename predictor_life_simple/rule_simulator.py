@@ -2,6 +2,7 @@ from collections import Counter, OrderedDict
 from itertools import product
 import os
 import random
+import sys
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 from functools import partial, reduce
 from operator import add
@@ -12,6 +13,7 @@ import torch
 from torch import nn, Tensor, tensor
 import einops
 from tqdm import tqdm
+import loguru
 
 import seagull as sgl
 from seagull.rules import life_rule
@@ -35,6 +37,7 @@ class CountingCNN(torch.nn.Module):
     def __init__(self):
         super().__init__()
         
+        
         self.counting_kenel = torch.nn.Conv2d(1, 1, 3, 1, 1, padding_mode="circular", bias=False)
         
         with torch.no_grad():
@@ -57,6 +60,7 @@ class RuleSimulatorStats:
     def __init__(self, 
                  rule: str = None, 
                  ):
+        
         self.d_th, self.l_th = None, None
         self.device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
         
@@ -198,13 +202,13 @@ class RuleSimulatorStats:
         l_all = counters[2] + counters[3]
         
         priors = {
-            "d": {(counters[0].get(k, 0))/(v) for (k,v) in d_all.items()},
-            "l": {(counters[2].get(k, 0))/(v) for (k,v) in l_all.items()},
+            "d": {k:round((counters[0].get(k, 0))/(v), 5) for (k,v) in d_all.items()},
+            "l": {k:round((counters[2].get(k, 0))/(v), 5) for (k,v) in l_all.items()},
         }
         
         likelihood = {
-            "d": {k:(v)/(dd+dl) for (k,v) in d_all.items()},
-            "l": {k:(v)/(dd+dl) for (k,v) in l_all.items()},
+            "d": {k:round((v)/(dd+dl), 5) for (k,v) in d_all.items()},
+            "l": {k:round((v)/(dd+dl), 5) for (k,v) in l_all.items()},
         }
         
         from pprint import pprint
@@ -274,21 +278,31 @@ class RuleSimulatorStats:
         return list_str(self.born), list_str(self.survive)
 
     def test_rule_str(self, rule_str: str):
-        ref_traj = np.load(self.test_loader.dataset.file_list[0])
-        ref_len = min(200, ref_traj.shape[0])-1
+        total_loss = 0
+        for f in self.test_loader.dataset.file_list[:10]:
+            ref_traj = np.load(f)
+            
+            ref_len = ref_traj.shape[0]-1
+            
+            board = sgl.Board((200, 200), p_pos=0.5)
+            board.state = ref_traj[0]
+            rule = partial(life_rule, rulestring=rule_str)
         
-        board = sgl.Board((200, 200), p_pos=0.5)
-        board.state = ref_traj[0]
-        rule = partial(life_rule, rulestring=rule_str)
-    
-        sim = sgl.Simulator(board)
-        sim.run(rule, ref_len)
+            sim = sgl.Simulator(board)
+            loguru.logger.remove()  # 移除默认配置
+            sim.run(rule, ref_len)
+            
+            pred_ = sim.get_history(exclude_init=True)
+            
+            # TODO: size mismatch bug, triggered when ref_len is small. 
+            try:
+                loss = np.mean((pred_.astype(np.float32) - ref_traj[1:ref_len+1].astype(np.float32))**2).item()
+            except ValueError:
+                print(pred_.shape, ref_traj[1:ref_len+1].shape, f)
+            
+            total_loss += loss
         
-        pred_ = sim.get_history(exclude_init=True)
-        
-        loss = np.mean((pred_.astype(np.float32) - ref_traj[1:ref_len+1].astype(np.float32))**2).item()
-        
-        return loss
+        return total_loss
 
 listmap = lambda f,l: list(map(f,l))
 
@@ -378,7 +392,8 @@ if __name__ == "__main__":
     
     param_file = r"D:\Internship\bimsa\result\predictor_life_simple\2025-11-29_23-27-49_small_4_layer_seq_cnn__200-200-B36_S23\best_simple_life_SimpleCNNSmall_5Layer_0.1.0.pth"
     
-    simulator = RuleSimulatorStats("B36/S23")
+    rule_str = "B3678/S34678"
+    simulator = RuleSimulatorStats(rule_str)
     
     # simulator.load_model(model, param_file)
     
@@ -391,7 +406,7 @@ if __name__ == "__main__":
     
     # simulator.infer_rule_str2(counters, acc)
     
-    simulator.test_rule_str("B36/S23")
+    simulator.test_rule_str(rule_str)
     
     # print(*list(simulator.rule_d.items()), sep="\n")
     
