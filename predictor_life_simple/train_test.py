@@ -407,8 +407,10 @@ def train_model(
                 
                 # TODO: Add Rule Searching
                 b, s = rule_stats.infer_rule_str(counters, item_acc)
-                print(f"Inferred Rule: B{''.join(b)}/S{''.join(s)}\n")
-                print(rule_stats.d_th, rule_stats.l_th)
+                rule_str = f"B{''.join(b)}/S{''.join(s)}"
+                print(f"Inferred Rule: {rule_str}\n")
+                rule_loss = rule_stats.test_rule_str(rule_str)
+                print(f"Rule Loss: {rule_loss:.6f}, {'Not Correct' if rule_loss > 0 else 'Correct'}\n")
                 
                 rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
                 
@@ -484,19 +486,21 @@ def train_model(
 
 
 if __name__ == "__main__":
+    from pprint import pprint
+    
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
     
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default="./predictor_life_simple/hyperparams/baseline.toml", help="Path to hyperparameters file")
-    in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B3/S23", help="Life rules")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default=".\predictor_life_simple\hyperparams\small_4_layer_seq_cnn.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B36/S23", help="Life rules")
     in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
     in_profile.add_argument("-w", "--sysSize", dest="sys_size", type=int, default=200, help="System size")
     
     in_profile_args = in_profile.parse_args()
 
-    print(in_profile_args.hyperparameters, end='\n\n')
+    pprint(in_profile_args.hyperparameters)
     args_dict = toml.load(in_profile_args.hyperparameters) | dict(in_profile_args._get_kwargs())
-    print(args_dict)
+    pprint(args_dict)
     print("Starting training...")
     # Call the training function
     
