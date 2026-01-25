@@ -7,6 +7,7 @@ from functools import partial, reduce
 from operator import add
 
 from matplotlib import pyplot as plt
+import numpy as np
 import torch
 from torch import nn, Tensor, tensor
 import einops
@@ -61,6 +62,14 @@ class RuleSimulatorStats:
         
         self.count_ker = CountingCNN().to(self.device)
         self.rule = rule.replace('_', '/')
+        
+        self.test_loader = get_dataloader(
+            data_dir=f"./predictor_life_simple/datasets/200-200-{self.rule.replace('/', '_')}",
+            batch_size=64,
+            shuffle=True,
+            num_workers=0,
+            split='train'
+        )
     
     def load_model(self, model: nn.Module, 
                  param_file: Optional[str] = None):
@@ -90,22 +99,23 @@ class RuleSimulatorStats:
     @torch.no_grad()
     def get_transform_stats(self):
         
-        test_loader = get_dataloader(
+        self.test_loader = get_dataloader(
             data_dir=f"./predictor_life_simple/datasets/200-200-{self.rule.replace('/', '_')}",
             batch_size=64,
             shuffle=True,
             num_workers=0,
-            split='all'
+            split='train'
         )
         
         d = [[-1], [-1], [-1], [-1]]
 
-        for idx, (inputs, _) in tqdm(enumerate(test_loader)):
+        for idx, (inputs, _) in tqdm(enumerate(self.test_loader), total=10):
             
             inputs = inputs.to(self.device)
             
-            #! perturb inputs
-            inputs = (inputs + 0.5 * torch.randn_like(inputs)).long().clamp(0, 1).float()
+            #! perturb inputs, but can make result shifted
+            #! eg. B3/S23 -> B1/S12
+            # inputs = (inputs + 0.5 * torch.randn_like(inputs)).long().clamp(0, 1).float()
             
             counts = self.count_ker(inputs)
             pred = self.model(inputs).argmax(dim=1, keepdim=True)
@@ -172,6 +182,9 @@ class RuleSimulatorStats:
         return counters
 
     def infer_rule_str(self, counters, acc) -> Tuple[List, List]:
+        # dd, dl, ld, ll are counts for state transitions,
+        # e.g. dd -> dead to dead, etc.
+        # TODO: Add threasholds respectively. 
         dd, dl = sum(counters[0].values()), sum(counters[1].values())
         ld, ll = sum(counters[2].values()), sum(counters[3].values())
         
@@ -201,6 +214,66 @@ class RuleSimulatorStats:
                 self.survive.append(i)
         
         return list_str(self.born), list_str(self.survive)
+
+    def infer_rule_str2(self, counters, acc) -> Tuple[List, List]:
+        # dd, dl, ld, ll are counts for state transitions,
+        # e.g. dd -> dead to dead, etc.
+        # TODO: Add threasholds respectively. 
+        dd, dl = sum(counters[0].values()), sum(counters[1].values())
+        ld, ll = sum(counters[2].values()), sum(counters[3].values())
+        
+        th_ratio = 0.6
+        self.dd_th = int(th_ratio * (1-acc/100) * (dd))
+        self.dl_th = int(th_ratio * (1-acc/100) * (dl))
+        self.ld_th = int(th_ratio * (1-acc/100) * (ld))
+        self.ll_th = int(th_ratio * (1-acc/100) * (ll))
+
+        # print(dd, dl, ld, ll, self.dd_th, self.dl_th, self.ld_th, self.ll_th, acc)
+        
+        dd_all = counters[0]
+        dl_all = counters[1]
+        ld_all = counters[2]
+        ll_all = counters[3]
+
+        filtered_dd = sorted(list(filter(lambda x:x[1]>self.dd_th, dd_all.items())), key=lambda x:x[0])
+        filtered_dl = sorted(list(filter(lambda x:x[1]>self.dl_th, dl_all.items())), key=lambda x:x[0])
+        filtered_ld = sorted(list(filter(lambda x:x[1]>self.ld_th, ld_all.items())), key=lambda x:x[0])
+        filtered_ll = sorted(list(filter(lambda x:x[1]>self.ll_th, ll_all.items())), key=lambda x:x[0])
+
+        self.dd_ls = []
+        self.dl_ls = []
+        self.ld_ls = []
+        self.ll_ls = []
+        
+        list_str = lambda x:list(map(lambda k:str(int(k)), x))
+        
+        for i,_ in filtered_dd:
+            self.dd_ls.append(i)
+        for i,_ in filtered_dl:
+            self.dl_ls.append(i)
+        for i,_ in filtered_ld:
+            self.ld_ls.append(i)
+        for i,_ in filtered_ll:
+            self.ll_ls.append(i)
+        
+        return list_str(self.born), list_str(self.survive)
+
+    def test_rule_str(self, rule_str: str):
+        ref_traj = np.load(self.test_loader.dataset.file_list[0])
+        ref_len = min(200, ref_traj.shape[0])-1
+        
+        board = sgl.Board((200, 200), p_pos=0.5)
+        board.state = ref_traj[0]
+        rule = partial(life_rule, rulestring=rule_str)
+    
+        sim = sgl.Simulator(board)
+        sim.run(rule, ref_len)
+        
+        pred_ = sim.get_history(exclude_init=True)
+        
+        loss = np.mean((pred_.astype(np.float32) - ref_traj[1:ref_len+1].astype(np.float32))**2).item()
+        
+        return loss
 
 listmap = lambda f,l: list(map(f,l))
 
@@ -290,7 +363,7 @@ if __name__ == "__main__":
     
     param_file = r"D:\Internship\bimsa\result\predictor_life_simple\2025-11-29_23-27-49_small_4_layer_seq_cnn__200-200-B36_S23\best_simple_life_SimpleCNNSmall_5Layer_0.1.0.pth"
     
-    # simulator = RuleSimulatorStats("B36/S23")
+    simulator = RuleSimulatorStats("B36/S23")
     
     # simulator.load_model(model, param_file)
     
@@ -298,8 +371,12 @@ if __name__ == "__main__":
     
     # simulator.plot_transform_stats(stat_ls, "./")
     
-    simulator = RuleSimulatorDict()
-    simulator.get_rule_from_nn(model, 0.4)
+    # counters = [Counter({0.0: 16533543, 1.0: 6306252, 3.0: 723050, 4.0: 188583, 5.0: 36750, 6.0: 4743, 2.0: 3187, 7.0: 359, 8.0: 11}), Counter({2.0: 2284373, 1.0: 7565, 3.0: 2726, 0.0: 10}), Counter({0.0: 646039, 3.0: 200116, 4.0: 56385, 5.0: 11486, 6.0: 1478, 7.0: 136, 1.0: 80, 2.0: 44, 8.0: 4}), Counter({1.0: 677315, 2.0: 472346, 0.0: 3408, 3.0: 11})]
+    # acc = 95
     
-    print(*list(simulator.rule_d.items()), sep="\n")
+    # simulator.infer_rule_str2(counters, acc)
+    
+    simulator.test_rule_str("B36/S23")
+    
+    # print(*list(simulator.rule_d.items()), sep="\n")
     
