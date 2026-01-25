@@ -11,6 +11,32 @@ transform = v2.Compose([
     v2.RandomErasing(0.8, (5e-4, 1e-3), value=0.5),
 ])
 
+def precompute_transform_table(K, p, M=2**32):
+    """
+    预计算累积概率的整数阈值表
+    K: 最大时间步 (K = T-2)
+    M: 均匀整数的上界 (exclusive)
+    """
+    total_weight = 1 - (1-p)**(K+1)
+    thresholds = []
+    cum_prob = 0.0
+    
+    for t in range(K+1):
+        cum_prob += (1-p)**t
+        # 将累积概率映射到 [0, M) 的整数
+        thresholds.append(int(cum_prob / total_weight * M))
+    
+    return thresholds  # 长度为 K+1 的升序数组
+
+def transform_uniform_to_time(u, thresholds):
+    """
+    将均匀整数 u 转换为时间步 t
+    u: 从 Uniform{0, ..., M-1} 采样的整数
+    """
+    # 二分查找：找到第一个满足 u < thresholds[t] 的 t
+    import bisect
+    return bisect.bisect_right(thresholds, u)
+
 class LifeGameDataset(Dataset):
     def __init__(self, file_list: List[str]):
         """
@@ -49,7 +75,7 @@ def get_dataloader(data_dir,
                    shuffle: bool = True, 
                    num_workers: int = 0, 
                    split: Literal["train", "test", "all"] = "train"
-                   ):
+                   ) -> DataLoader:
     """
     Creates a DataLoader for the LifeGameDataset with train/test split.
 
