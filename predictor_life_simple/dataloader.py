@@ -35,7 +35,7 @@ def transform_uniform_to_time(u, thresholds):
     return bisect.bisect_right(thresholds, u)
 
 class LifeGameDataset(Dataset):
-    def __init__(self, file_list: List[str]):
+    def __init__(self, file_list: List[str], sampling_distribution:str = "uniform"):
         """
         Args:
             file_list (List[str]): List of file paths to use in the dataset.
@@ -44,6 +44,7 @@ class LifeGameDataset(Dataset):
         self.arr_list = [np.load(i) for i in file_list]
         self.data_len_ls = [i.shape[0] for i in self.arr_list]
         self.len_prefix_sum = list(accumulate(self.data_len_ls))
+        self.sampling_distribution = sampling_distribution
         
         self.transform_tables = {}
         
@@ -59,19 +60,17 @@ class LifeGameDataset(Dataset):
         file_path = self.file_list[file_idx]
         data = np.load(file_path)  # Shape: [T, N, N]
         
-        
-        a = np.random.geometric(0.5).astype(np.int32)
-        if a >= data.shape[0] - 1:
-            t = np.random.randint(0, data.shape[0] - 1)
-        else:
-            t = a
+        # sample time w.r.t. truncated geometric(0.01).
+        while (a := int(np.random.geometric(0.01)) - 1) >= data.shape[0] - 1:
+            ...
+        t = a
         
         x, x_1 = map(lambda x: torch.tensor(x, dtype=torch.float32), 
                           [data[t], data[t + 1]])
         x = (x / (dim:=(255 if x.max() > 100 else 1)))[None, ...]
         y = (x_1 / dim)
         
-        #! Data Augmentation
+        #! Data Augmentation (deprecated)
         # x = transform(x)
         
         return x, y
