@@ -486,7 +486,12 @@ def train_model(
 
 
 if __name__ == "__main__":
+    from pyinstrument import Profiler
     from pprint import pprint
+    
+    torch.random.manual_seed(42)
+    
+    profiler = Profiler()
     
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
@@ -504,4 +509,11 @@ if __name__ == "__main__":
     print("Starting training...")
     # Call the training function
     
+    profiler.start()
+    
     train_model(args_dict)
+    
+    profiler.stop()
+    
+    with open('profile.html', 'w') as f: 
+        f.write(profiler.output_html())
