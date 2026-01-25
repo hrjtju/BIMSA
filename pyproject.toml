@@ -17,6 +17,7 @@ dependencies = [
     "numba>=0.61.2",
     "numpy==1.26",
     "pandas>=2.3.2",
+    "pyinstrument>=5.1.2",
     "pyseagull>=1.0.0b4",
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
