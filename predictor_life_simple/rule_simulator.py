@@ -207,7 +207,7 @@ class RuleSimulatorStats:
             "l": {k:(v)/(dd+dl) for (k,v) in l_all.items()},
         }
         
-        import pprint
+        from pprint import pprint
         
         pprint(priors)
         pprint(likelihood)
