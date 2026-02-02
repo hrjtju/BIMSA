@@ -293,12 +293,10 @@ class RuleSimulatorStats:
             sim.run(rule, ref_len)
             
             pred_ = sim.get_history(exclude_init=True)
+            actual_len = min(ref_len, pred_.shape[0])
             
             # TODO: size mismatch bug, triggered when ref_len is small. 
-            try:
-                loss = np.mean((pred_.astype(np.float32) - ref_traj[1:ref_len+1].astype(np.float32))**2).item()
-            except ValueError:
-                print(pred_.shape, ref_traj[1:ref_len+1].shape, f)
+            loss = np.mean((pred_[:actual_len].astype(np.float32) - ref_traj[1:actual_len+1].astype(np.float32))**2).item()
             
             total_loss += loss
         

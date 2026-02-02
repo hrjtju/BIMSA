@@ -497,7 +497,7 @@ if __name__ == "__main__":
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
     
     in_profile.add_argument("-p", "--hyperparameters", type=str, default=".\predictor_life_simple\hyperparams\small_4_layer_seq_cnn.toml", help="Path to hyperparameters file")
-    in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B36/S23", help="Life rules")
+    in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B3678/S34678", help="Life rules")
     in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
     in_profile.add_argument("-w", "--sysSize", dest="sys_size", type=int, default=200, help="System size")
     
