@@ -330,8 +330,9 @@ def train_model(
         running_loss = 0.0
         correct = 0
         total = 0
-        
         best_acc = 0.0
+        
+        flag = False
         
         for idx, (inputs, labels) in enumerate(train_loader):
             # Zero the parameter gradients
@@ -406,14 +407,40 @@ def train_model(
                 counters = rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
                 
                 # TODO: Add Rule Searching
-                b, s = rule_stats.infer_rule_str(counters, item_acc)
-                rule_str = f"B{''.join(b)}/S{''.join(s)}"
-                print(f"Inferred Rule: {rule_str}\n")
-                rule_loss = rule_stats.test_rule_str(rule_str)
-                print(f"Rule Loss: {rule_loss:.6f}, {'Not Correct' if rule_loss > 0 else 'Correct'}\n")
+                rule_strs = rule_stats.infer_rule_str(counters, item_acc)
+                print(f"Inferred Rule: {rule_strs}\n")
+                
+                for s in rule_strs:
+                    rule_loss = rule_stats.test_rule_str(s, k=1)
+                    print(f"Rule: {s}, Loss: {rule_loss:.6f}, {'Not Correct' if rule_loss > 0 else 'Correct'}\n")
+                    
+                    if rule_loss == 0:
+                        print(f"Further Testing... ")
+                        rule_loss_f = rule_stats.test_rule_str(s, k=20)
+                        
+                        if rule_loss_f == 0:
+                        
+                            print(
+                                f"""
+                                Infer Success.
+                                #####################################
+                                    Inferred Rule: {s}
+                                #####################################
+                                
+                                Terminating Training ...
+                                """
+                            )
+                            flag = True
+                            break
+                        
+                        else:
+                            print("Near miss. ")
                 
                 rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
-                
+            
+            if flag == True:
+                break
+            
             assert correct <= total, f"Correct predictions {correct} exceed total {total}."
             
             if (idx+1) % 50 == 0:
@@ -421,6 +448,9 @@ def train_model(
                       f"| loss: {running_loss/(idx+1):.3f} "
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
 
+        if flag == True:
+            break
+        
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
             
@@ -453,15 +483,15 @@ def train_model(
         
                 assert val_correct <= val_total, f"Validation correct predictions {val_correct} exceed total {val_total}."
                 
-                if idx % 100 == 0:
-                        image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
-                           idx, epoch,
-                           save_base_str
-                          )
+                # if idx % 100 == 0:
+                #         image_grid = save_image(inputs, labels, outputs.argmax(dim=1)[:, None, ...],
+                #            idx, epoch,
+                #            save_base_str
+                #           )
                         
-                        wandb.log({
-                            "test_sample": wandb.Image(image_grid),
-                        })
+                #         wandb.log({
+                #             "test_sample": wandb.Image(image_grid),
+                #         })
         
         val_epoch_acc = 100. * val_correct / val_total
         print(f"Acc: {val_epoch_acc:.2f}%", flush=True)

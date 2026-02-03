@@ -1,5 +1,5 @@
 from collections import Counter, OrderedDict
-from itertools import product
+from itertools import chain, combinations, product
 import os
 import random
 import sys
@@ -33,6 +33,14 @@ def stat_fn(l: List[List[int]], d) -> List[List[int]]:
         
     return d
 
+def powerset(iterable):
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    if len(iterable) == 0:
+        return [tuple()]
+    s = list(iterable)
+    return list(chain.from_iterable(combinations(s, r) for r in range(len(s)+1)))
+
+
 class CountingCNN(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -52,6 +60,7 @@ class CountingCNN(torch.nn.Module):
         
         for param in self.parameters():
             param.requires_grad_(False)
+            
     
     def forward(self, x):
         return self.counting_kenel(x)
@@ -74,6 +83,8 @@ class RuleSimulatorStats:
             num_workers=0,
             split='train'
         )
+        
+        self.last_likelihood = None
     
     def load_model(self, model: nn.Module, 
                  param_file: Optional[str] = None):
@@ -185,6 +196,13 @@ class RuleSimulatorStats:
         
         return counters
 
+    def update_likelihood(self, dist, dist_new, labda=0.8):
+        assert all(i==j for (i,j) in zip(dist.keys(), dist_new.keys()))
+        return {
+           key: {i:(j*labda + l*(1-labda)) for ((i,j), (k,l)) in zip(dist[key].items(), dist_new[key].items()) if i == k} 
+           for key in dist
+        }
+    
     def infer_rule_str(self, counters, acc) -> Tuple[List, List]:
         # dd, dl, ld, ll are counts for state transitions,
         # e.g. dd -> dead to dead, etc.
@@ -211,6 +229,17 @@ class RuleSimulatorStats:
             "l": {k:round((v)/(dd+dl), 5) for (k,v) in l_all.items()},
         }
         
+        posterior = {
+           key: {i:j*(l**0.5) for ((i,j), (k,l)) in zip(priors[key].items(), likelihood[key].items()) if i == k} 
+           for key in priors.keys()
+        }
+        
+        if self.last_likelihood is None:
+            self.last_likelihood = posterior
+        else:
+            posterior = self.update_likelihood(posterior, self.last_likelihood)
+            self.last_likelihood = posterior
+        
         from pprint import pprint
         
         pprint(priors)
@@ -232,7 +261,22 @@ class RuleSimulatorStats:
             if counters[3][i] > 10 * counters[2][i]:
                 self.survive.append(i)
         
-        return list_str(self.born), list_str(self.survive)
+        l_th = 0.5
+        
+        filtered_l = {
+            key: [i[0] for i in sorted(list(filter(lambda x:x[1]>l_th, posterior[key].items())), key=lambda x:x[1], reverse=True)]
+            for key in posterior
+        }
+        
+        self.born_l = powerset(set(filtered_l['d']) - set(self.born))
+        self.survive_l = powerset(set(filtered_l['l']) - set(self.survive))
+        
+        ls_born = [sorted(self.born + list(k)) for k in self.born_l]
+        ls_survive = [sorted(self.survive + list(k)) for k in self.survive_l]
+        
+        res = [f"B{''.join(list_str(i))}/S{''.join(list_str(j))}" for (i,j) in product(ls_born, ls_survive)]
+        
+        return res
 
     def infer_rule_str2(self, counters, acc) -> Tuple[List, List]:
         # dd, dl, ld, ll are counts for state transitions,
@@ -277,9 +321,9 @@ class RuleSimulatorStats:
         
         return list_str(self.born), list_str(self.survive)
 
-    def test_rule_str(self, rule_str: str):
+    def test_rule_str(self, rule_str: str, k=10):
         total_loss = 0
-        for f in self.test_loader.dataset.file_list[:10]:
+        for f in random.choices(self.test_loader.dataset.file_list, k=k):
             ref_traj = np.load(f)
             
             ref_len = ref_traj.shape[0]-1
@@ -399,12 +443,16 @@ if __name__ == "__main__":
     
     # simulator.plot_transform_stats(stat_ls, "./")
     
-    # counters = [Counter({0.0: 16533543, 1.0: 6306252, 3.0: 723050, 4.0: 188583, 5.0: 36750, 6.0: 4743, 2.0: 3187, 7.0: 359, 8.0: 11}), Counter({2.0: 2284373, 1.0: 7565, 3.0: 2726, 0.0: 10}), Counter({0.0: 646039, 3.0: 200116, 4.0: 56385, 5.0: 11486, 6.0: 1478, 7.0: 136, 1.0: 80, 2.0: 44, 8.0: 4}), Counter({1.0: 677315, 2.0: 472346, 0.0: 3408, 3.0: 11})]
-    # acc = 95
+    counters = [Counter({0.0: 16533543, 1.0: 6306252, 3.0: 723050, 4.0: 188583, 5.0: 36750, 6.0: 4743, 2.0: 3187, 7.0: 359, 8.0: 11}), Counter({2.0: 2284373, 1.0: 7565, 3.0: 2726, 0.0: 10}), Counter({0.0: 646039, 3.0: 200116, 4.0: 56385, 5.0: 11486, 6.0: 1478, 7.0: 136, 1.0: 80, 2.0: 44, 8.0: 4}), Counter({1.0: 677315, 2.0: 472346, 0.0: 3408, 3.0: 11})]
+    acc = 95
     
-    # simulator.infer_rule_str2(counters, acc)
+    simulator.infer_rule_str(counters, acc)
     
-    simulator.test_rule_str(rule_str)
+    
+    counters = [Counter({0.0: 16533543, 1.0: 6306252, 3.0: 723050, 4.0: 188583, 5.0: 36750, 6.0: 4743, 2.0: 3187, 7.0: 359, 8.0: 11}), Counter({2.0: 2284373, 1.0: 7565, 3.0: 2726, 0.0: 10}), Counter({0.0: 646039, 3.0: 200116, 4.0: 56385, 5.0: 11486, 6.0: 1478, 7.0: 136, 1.0: 80, 2.0: 44, 8.0: 4}), Counter({1.0: 677315, 2.0: 472346, 0.0: 3408, 3.0: 11})]
+    acc = 95
+    
+    simulator.infer_rule_str(counters, acc)
     
     # print(*list(simulator.rule_d.items()), sep="\n")
     
