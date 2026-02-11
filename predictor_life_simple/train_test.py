@@ -255,6 +255,8 @@ def train_model(
                 args: dict = None
                 ):
     
+    incorrect_rules = []
+    
     rule_data_str = f"{args['sys_size']}-{args['data_iters']}-{args['data_rule'].replace('/', '_')}"
     dataset_dir = f"{bimsa_life_dir}/{rule_data_str}/"
     start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}".split('.')[0]
@@ -401,7 +403,7 @@ def train_model(
                 })
                 
             # -------- RULE STATS --------
-            if (idx+1) % 200 == 0:
+            if (idx+1) % 200 == 0 and item_acc > 95:
                 rule_stats.load_model(model)
                 stat_ls = rule_stats.get_transform_stats()
                 counters = rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
@@ -410,15 +412,15 @@ def train_model(
                 rule_strs = rule_stats.infer_rule_str(counters, item_acc)
                 print(f"Inferred Rule: {rule_strs}\n")
                 
-                for s in rule_strs:
+                for s in [i for i in rule_strs if i not in incorrect_rules]:
                     rule_loss = rule_stats.test_rule_str(s, k=1)
-                    print(f"Rule: {s}, Loss: {rule_loss:.6f}, {'Not Correct' if rule_loss > 0 else 'Correct'}\n")
+                    print(f"Rule: {s}, Loss: {rule_loss:.6f}, {'Not Correct' if rule_loss > 0 else 'Correct'}")
                     
-                    if rule_loss == 0:
+                    if rule_loss < 1e-5:
                         print(f"Further Testing... ")
                         rule_loss_f = rule_stats.test_rule_str(s, k=20)
                         
-                        if rule_loss_f == 0:
+                        if rule_loss_f < 1e-5:
                         
                             print(
                                 f"""
@@ -435,6 +437,9 @@ def train_model(
                         
                         else:
                             print("Near miss. ")
+                    else:
+                        incorrect_rules.append(s)
+                        
                 
                 rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
             

@@ -33,6 +33,9 @@ def stat_fn(l: List[List[int]], d) -> List[List[int]]:
         
     return d
 
+def add_zero_val_key(d: dict) -> dict:
+    return {k:d[k] if k in d else 0 for k in range(9)}
+
 def powerset(iterable):
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     if len(iterable) == 0:
@@ -220,30 +223,30 @@ class RuleSimulatorStats:
         l_all = counters[2] + counters[3]
         
         priors = {
-            "d": {k:round((counters[0].get(k, 0))/(v), 5) for (k,v) in d_all.items()},
-            "l": {k:round((counters[2].get(k, 0))/(v), 5) for (k,v) in l_all.items()},
+            "d": add_zero_val_key({k:round((counters[0].get(k, 0))/(v), 5) for (k,v) in d_all.items()}),
+            "l": add_zero_val_key({k:round((counters[2].get(k, 0))/(v), 5) for (k,v) in l_all.items()}),
         }
         
         likelihood = {
-            "d": {k:round((v)/(dd+dl), 5) for (k,v) in d_all.items()},
-            "l": {k:round((v)/(dd+dl), 5) for (k,v) in l_all.items()},
+            "d": add_zero_val_key({k:round((v)/(dd+dl), 5) for (k,v) in d_all.items()}),
+            "l": add_zero_val_key({k:round((v)/(ld+ll), 5) for (k,v) in l_all.items()}),
         }
         
         posterior = {
-           key: {i:j*(l**0.5) for ((i,j), (k,l)) in zip(priors[key].items(), likelihood[key].items()) if i == k} 
+           key: add_zero_val_key({i:j*(l**0.1) for ((i,j), (k,l)) in zip(priors[key].items(), likelihood[key].items()) if i == k}) 
            for key in priors.keys()
         }
         
         if self.last_likelihood is None:
             self.last_likelihood = posterior
         else:
-            posterior = self.update_likelihood(posterior, self.last_likelihood)
+            posterior = self.update_likelihood(self.last_likelihood, posterior)
             self.last_likelihood = posterior
         
         from pprint import pprint
         
-        pprint(priors)
-        pprint(likelihood)
+        # pprint(priors)
+        pprint(f"{priors=}\n{likelihood=}\n{posterior=}\n")
 
         filtered_b = sorted(list(filter(lambda x:x[1]>self.d_th, d_all.items())), key=lambda x:x[0])
         filtered_s = sorted(list(filter(lambda x:x[1]>self.l_th, l_all.items())), key=lambda x:x[0])
@@ -261,7 +264,7 @@ class RuleSimulatorStats:
             if counters[3][i] > 10 * counters[2][i]:
                 self.survive.append(i)
         
-        l_th = 0.5
+        l_th = 0.7
         
         filtered_l = {
             key: [i[0] for i in sorted(list(filter(lambda x:x[1]>l_th, posterior[key].items())), key=lambda x:x[1], reverse=True)]

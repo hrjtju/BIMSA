@@ -1,0 +1,513 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{xcolor}
+\usepackage{svg}
+\usepackage{multirow}
+\usepackage{array}
+
+% 添加作者格式所需的包
+\usepackage{authblk}
+
+% 定义作者格式命令（如果不存在的话）
+\providecommand{\fnm}[1]{#1}
+\providecommand{\sur}[1]{#1}
+\providecommand{\orgdiv}[1]{#1}
+\providecommand{\orgname}[1]{#1}
+\providecommand{\orgaddress}[1]{#1}
+\providecommand{\street}[1]{#1}
+\providecommand{\city}[1]{#1}
+\providecommand{\postcode}[1]{#1}
+\providecommand{\state}[1]{#1}
+\providecommand{\country}[1]{#1}
+\providecommand{\orgname}[1]{#1}
+\providecommand{\email}[1]{#1}
+\geometry{margin=1in}
+
+\title{Interpretable Convolutional Kernels for Physical Principles Discovery from Observational Data}
+
+
+
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a novel approach for learning complex physical principles from observational data using multi-scale group equivariant convolutional neural networks. We demonstrate the effectiveness of our method on two paradigmatic systems: Conway's Game of Life cellular automata. Our neural architecture successfully discovers the underlying dynamical rules governing these systems by learning appropriate mapping functions that capture both local and long-range spatial interactions across multiple scales. Furthermore, we propose a statistics-based rule inference algorithm that extracts explicit symbolic rules from the trained neural networks with high fidelity.
+
+\textbf{Keywords:} Lattice Dynamics, Multi-Scale Group Equivariant Convolutional Neural Networks, Physical Principles, Dynamical Systems, Group representation theory, Symbolic Rule Extraction
+\end{abstract}
+
+\section{Introduction}
+Recent advances in deep learning, specifically convolutional neural networks, have shown remarkable promise in modeling spatial patterns and discovering underlying physical principles from data \citep{lecun2015deep}. Meanwhile, complementary work in symbolic regression has shown remarkable success in discovering explicit mathematical expressions from data, with AI Feynman and AI Feynman 2.0 successfully recovering all equations from the Feynman Lectures on Physics through physics-inspired techniques and Pareto-optimal symbolic regression \citep{udrescu2020ai,udrescu2020ai2}. In molecular dynamics, the Deep Potential Molecular Dynamics (DeePMD) method has demonstrated how deep neural networks can learn many-body interatomic potentials from ab initio data while preserving essential physical symmetries (translation, rotation, and permutation invariance), achieving quantum mechanical accuracy at linear computational cost scaling \citep{zhang2018deep}.
+
+In this work, we extend these ideas by developing a multi-scale convolutional neural network architecture specifically designed for learning complex physical principles from observational data. Our approach leverages the connection between convolution kernels and differential operators to automatically discover the governing equations of dynamical systems without prior knowledge of their mathematical form. We demonstrate the effectiveness of our method on Conway's Game of Life and its variants, achieving near-perfect accuracy with remarkably compact network architectures (as few as 53 parameters).
+
+%Cellular automata (CA) represent a fundamental class of discrete dynamical systems that exhibit complex emergent behaviors from simple local rules \citep{wolfram2002new}. Conway's Game of Life, perhaps the most famous cellular automaton, demonstrates how intricate patterns and dynamics can arise from elementary birth-death rules \citep{conway1970game}.
+
+\section{Problem Formulation}
+\subsection{Lattice Field} 
+Consider a discrete field system defined on a $d$-dimensional regular lattice $\Lambda \subset \mathbb{Z}^d$ \citep{kardar2007statistical}. For each lattice site $\mathbf{i} = (i_1, i_2, \ldots, i_d) \in \Lambda$, we define a field variable $\phi_{\mathbf{i}}(t) \in \mathcal{S}$, where $\mathcal{S}$ represents the state space (typically $\{0,1\}$ for binary cellular automata). The system's configuration space can be expressed as:
+\begin{equation}
+\Phi(t) = \{\phi_{\mathbf{i}}(t) : \mathbf{i} \in \Lambda\} \in \mathcal{S}^{|\Lambda|}
+\end{equation}
+This formulation naturally extends classical statistical mechanics to discrete lattice systems, where the fundamental principles of equilibrium and non-equilibrium dynamics can be rigorously analyzed \citep{baxter2016exactly}.
+
+The temporal evolution of the system is described by an operator $\mathcal{T}: \mathcal{S}^{|\Lambda|} \rightarrow \mathcal{S}^{|\Lambda|}$:
+
+\begin{equation}
+\Phi(t+1) = \mathcal{T}[\Phi(t)]
+\end{equation}
+
+where the operator $\mathcal{T}$ must satisfy the following fundamental constraints:
+
+\textbf{Locality Condition}: The evolution of each lattice site depends only on its finite neighborhood $\mathcal{N}(\mathbf{i})$:
+\begin{equation}
+\phi_{\mathbf{i}}(t+1) = f_{\text{local}}(\{\phi_{\mathbf{j}}(t) : \mathbf{j} \in \mathcal{N}(\mathbf{i})\})
+\end{equation}
+where $\mathcal{N}(\mathbf{i})$ denotes the neighborhood of lattice site $\mathbf{i}$, typically the Moore neighborhood (8 surrounding cells) or Von Neumann neighborhood (4 adjacent cells).
+
+\textbf{Causality Condition}: Information propagation has finite speed, i.e., there exists $v_{\max} < \infty$ such that:
+\begin{equation}
+\text{supp}(\mathcal{T}^n[\delta_{\mathbf{i}}]) \subset B_{\mathbf{i}}(nv_{\max})
+\end{equation}
+\subsection{Physical Symmetry Principles}
+
+\subsubsection{Time Translation Invariance}
+
+The evolution rules are independent of the choice of absolute time origin. Formally, for any temporal shift $\tau \in \mathbb{Z}$:
+
+\begin{equation}
+\mathcal{T}[\Phi(t)] = \Phi(t+1) \Leftrightarrow \mathcal{T}[\Phi(t+\tau)] = \Phi(t+\tau+1)
+\end{equation}
+
+This is equivalent to requiring that the parameters of evolution operator $\mathcal{T}$ contain no explicit time dependence.
+
+\subsubsection{Spatial Symmetry Group}
+
+\textbf{Translation Invariance}: For any lattice translation $\mathbf{a} \in \mathbb{Z}^d$, define the translation operator $T_{\mathbf{a}}$:
+\begin{equation}
+[T_{\mathbf{a}}\Phi]_{\mathbf{i}} = \Phi_{\mathbf{i}+\mathbf{a}}
+\end{equation}
+
+The evolution operator commutes with translation operators:
+\begin{equation}
+\mathcal{T} \circ T_{\mathbf{a}} = T_{\mathbf{a}} \circ \mathcal{T}
+\end{equation}
+
+\textbf{Point Group Symmetries}: For square lattices, the system exhibits $C_{4v}$ point group symmetry, including:
+\begin{itemize}
+\item 90° rotational invariance: $\mathcal{T} \circ R_{\pi/2} = R_{\pi/2} \circ \mathcal{T}$
+\item Reflection invariance: $\mathcal{T} \circ \sigma = \sigma \circ \mathcal{T}$
+\end{itemize}
+
+\subsubsection{Markovian Property and Information-Theoretic Structure}
+
+The system satisfies the strict Markov condition:
+\begin{equation}
+P(\Phi(t+1)|\Phi(t), \Phi(t-1), \ldots, \Phi(0)) = P(\Phi(t+1)|\Phi(t))
+\end{equation}
+
+This implies that the system's "memory" is completely encoded in the current state, with no hidden historical dependencies.
+
+\subsubsection{Reversibility and Time-Reversal Symmetry}
+
+For conservative systems, the evolution operator is invertible, i.e., there exists an inverse operator $\mathcal{T}^{-1}$:
+\begin{equation}
+\mathcal{T}^{-1} \circ \mathcal{T} = \mathcal{T} \circ \mathcal{T}^{-1} = \mathcal{I}
+\end{equation}
+This ensures that no information is lost in the system, and trajectories are deterministic in phase space.
+
+
+\iffalse
+We formulate the problem as learning a mapping function $F$ such that
+\begin{equation}
+\frac{d}{dt}\mathbf{X}(t) = \mathcal{F}(\mathbf{X}(t); \theta),
+\end{equation}
+where $\mathbf{X}(t) \in \mathbb{R}^n$ is an $n$-dimensional state vector, $\mathcal{F}: \mathbb{R}^n \times \Theta \rightarrow \mathbb{R}^n$ is a mapping function that governs the system dynamics, and $\theta$ represents the set of trainable parameters that define the specific form of the dynamical system. The corresponding discrete formulation can be expressed as:
+\begin{equation}
+\mathbf{X}^{(t+1)} = \mathcal{F}(\mathbf{X}^{(t)}; \theta),
+\end{equation}
+where $\mathbf{X}^{(t)} \in \mathbb{R}^n$ is the state vector at discrete time step $t$, $\mathbf{X}^{(t+1)}$ represents the state at the next discrete time step, $\mathcal{F}$ is the discrete mapping function that updates the system state from one time step to the next. The goal of this paper is to learn $\mathcal{F}$ by automatically discovering dynamical rules from data, where $\mathcal{F}$ can represent differential operators for continuous systems or transition rules for discrete systems.
+\fi
+
+
+\section{Multi-Scale Convolutional Neural Networks}
+In this work, we use Multi-Scale Convolutional Neural Networks to discover the underlying physical principles governing dynamical systems by learning the mapping function $\mathcal{F}$ that captures both local and long-range spatial interactions. The multi-scale architecture is essential because physical processes in spatiotemporal systems often involve interactions across multiple spatial scales simultaneously, from immediate neighbor effects to global pattern formation mechanisms.
+
+\textcolor{red}{Based on the aforementioned symmetry principles, our multi-scale CNN architecture should satisfy:
+}
+
+\begin{enumerate}
+\item \textbf{Parameter Sharing}: Enforces translation invariance
+\item \textbf{Equivariant Network Structure}: Preserves rotational and reflection symmetries
+\item \textbf{Causal Convolution}: Ensures locality and causality constraints
+\item \textbf{Time-Independent Parameterization}: Embodies time translation invariance
+\end{enumerate}
+
+This structured inductive bias enables the network to efficiently learn physically reasonable dynamical rules while significantly reducing the required amount of training data.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.7\linewidth]{fig/Multi-Scale CNN.png}
+\caption{Multi-scale convolution operations for capturing spatial interactions at different scales.}
+\label{fig:Multi-Scale CNN}
+\end{figure}
+
+\subsection{Progressive Model Simplification}
+To enhance interpretability and computational efficiency, we progressively simplified our architecture from an initial complex Encoder-Transformer-Decoder structure to lightweight, shallow CNNs. This simplification process revealed that minimal architectures suffice for learning cellular automaton dynamics.
+
+\subsubsection{CNN-Small Architecture}
+The CNN-Small model employs a three-layer convolutional structure with batch normalization and ReLU activations. The network takes a two-channel input (current state $x_t$ and previous state $x_{t-1}$) and outputs a two-channel prediction. The architecture is defined as:
+\begin{align}
+\mathbf{h}_1 &= \text{ReLU}(\text{BN}(\text{Conv}_{3\times3}(\mathbf{x}))) \\
+\mathbf{h}_2 &= \text{ReLU}(\text{BN}(\text{Conv}_{3\times3}(\mathbf{h}_1))) \\
+\hat{\mathbf{y}} &= \text{Conv}_{3\times3}(\mathbf{h}_2)
+\end{align}
+where $\mathbf{x} \in \mathbb{R}^{2 \times H \times W}$ represents the stacked current and previous states.
+
+\subsubsection{CNN-Tiny: Minimal Viable Architecture}
+Pushing simplification to the extreme, the CNN-Tiny architecture reduces the channel dimensions to a minimum, resulting in only 53 trainable parameters. The architecture follows:
+\begin{align}
+\mathbf{h}_1 &= \text{ReLU}(\text{BN}(\text{Conv}_{3\times3}^{2\to1}(\mathbf{x}))) \\
+\mathbf{h}_2 &= \text{ReLU}(\text{BN}(\text{Conv}_{3\times3}^{1\to1}(\mathbf{h}_1))) \\
+\hat{\mathbf{y}} &= \text{Conv}_{3\times3}^{1\to2}(\mathbf{h}_2)
+\end{align}
+Despite its compact size, this architecture achieves competitive accuracy on most rules, demonstrating that cellular automaton dynamics can be captured with minimal parametric complexity.
+
+\subsection{Group Equivariant CNN (P4CNN)}
+To explicitly enforce rotational symmetry, we implement Group Equivariant Convolutional Networks using the e2cnn framework. We constrain our model to the $p4$ group, which consists of translations and rotations by multiples of $90^\circ$. 
+
+The key requirement is that for a rotation transformation $L_r$ and neural network $F$, the following equivariance condition holds:
+\begin{equation}
+L_{r}[F(f)] = F(L_{r}[f])
+\end{equation}
+
+Our P4CNN implementation utilizes $R^2$-convolutions that map between field types defined by group representations. Specifically:
+\begin{itemize}
+\item Input field: 2 copies of the trivial representation (scalar fields)
+\item Hidden layers: 8 regular representations of $C_4$ (rotation group)
+\item Output field: 2 trivial representations (binary classification per cell)
+\end{itemize}
+
+This architecture ensures that rotating the input grid commutes with the network operation, significantly improving generalization and reducing the effective parameter count through weight sharing across orientations.
+
+\section{Training Strategy and Optimization}
+
+\subsection{Weighted Cross-Entropy Loss}
+Cellular automata typically exhibit severe class imbalance, as dead cells vastly outnumber living cells. To address this, we employ a weighted cross-entropy loss where the weight for each class is inversely proportional to its frequency:
+\begin{equation}
+w_c = \frac{N_{\text{total}}}{N_c}, \quad c \in \{0,1\}
+\end{equation}
+where $N_c$ is the number of cells in class $c$. This ensures that rare events (cell births) contribute appropriately to the gradient updates.
+
+\subsection{Dynamic Loss Weighting}
+We adopt a curriculum learning strategy that dynamically balances reconstruction loss ($L_{\text{rec}}$) and dynamics loss ($L_{\text{dyn}}$) during training. The total loss is formulated as:
+\begin{equation}
+L = (1 - \alpha) L_{\text{dyn}} + \alpha L_{\text{rec}} + \lambda L_{\text{reg}}
+\end{equation}
+where the weighting factor $\alpha$ decays exponentially:
+\begin{equation}
+\alpha_t = \max\left(10^{-3}, \alpha_0 \cdot (1 - 10^{-6})^t\right)
+\end{equation}
+This schedule initially prioritizes reconstruction (autoencoding) and gradually shifts focus to learning the forward dynamics, stabilizing early training while ensuring accurate temporal prediction.
+
+\subsection{Symmetry Constraints}
+We augment the training data with transformed versions to enforce spatial symmetries. For each batch, we generate:
+\begin{itemize}
+\item Randomly translated versions via circular padding (toroidal boundary)
+\item Rotated versions ($90^\circ, 180^\circ, 270^\circ$)
+\end{itemize}
+The symmetry loss enforces that predictions commute with these transformations:
+\begin{equation}
+L_{\text{sym}} = \mathbb{E}_{\mathbf{x}, T}\left[\|F(T(\mathbf{x})) - T(F(\mathbf{x}))\|_2^2\right]
+\end{equation}
+where $T$ represents the group of spatial transformations.
+
+\subsection{Optimization Details}
+We utilize the Adam optimizer with CyclicLR scheduling (base learning rate $10^{-2}$, maximum $1.5 \times 10^{-1}$) to help escape local minima. Early stopping is implemented based on validation accuracy, with a patience of 20 epochs.
+
+\section{Numerical Experiments}
+\subsection{Dataset Generation}
+We utilize the \texttt{pyseagull} library for efficient simulation of cellular automata on $100 \times 100$ grids with toroidal (periodic) boundary conditions. To avoid bias toward trivial fixed points (all-dead or all-alive states), we implement early termination: if a simulation reaches a first-order fixed point or a simple periodic orbit, it is terminated and restarted. This ensures the dataset contains rich dynamical behaviors.
+
+Each training sample consists of a pair $(\mathbf{S}^{(t)}, \mathbf{S}^{(t+1)})$, representing consecutive states. We generate trajectories for eight distinct cellular automaton rules to evaluate generalization across different dynamical regimes.
+
+\subsection{Cellular Automata Rules}
+We evaluate our method on a diverse set of life-like cellular automaton rules, ranging from the classic Conway's Life to more exotic dynamics. Table \ref{tab:rules} summarizes the rules and their characteristics.
+
+\begin{table}[htbp]
+\centering
+\caption{Cellular Automaton Rules Evaluated in This Study}
+\label{tab:rules}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Rule Symbol & Neighborhood & Type & Description \\ \midrule
+B3/S23 & 3$\times$3 Moore & Standard & Conway's Life; complex emergent patterns \\
+B36/S23 & 3$\times$3 Moore & HighLife & Similar to Life but with self-replicating structures \\
+B3678/S34678 & 3$\times$3 Moore & Day \& Night & Complementary symmetry (black/white reversal) \\
+B35678/S5678 & 3$\times$3 Moore & Diamoeba & Forms unpredictable diamond-shaped blobs \\
+B2/S & 3$\times$3 Moore & Seeds & Explosive growth; every cell dies every generation \\
+B234/S & 3$\times$3 Moore & Persian Rug & Generates carpet-like fractal patterns \\
+B345/S5 & 3$\times$3 Moore & LongLife & Supports extremely long-period oscillators \\
+B13/S012V & 3$\times$3 Von Neumann & - & Four-neighbor orthogonal interactions \\
+B2/S013V & 3$\times$3 Von Neumann & - & Orthogonal variant with different dynamics \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Model Comparison}
+We compare six architectures: CNN-Tiny, CNN-Small, Multi-Scale CNN (MCNN), P4CNN-Tiny, P4CNN-Small, and P4MCNN. Table \ref{tab:model_params} presents the computational complexity and minimum validation accuracy across all rules.
+
+\begin{table}[htbp]
+\centering
+\caption{Model Complexity and Performance Comparison}
+\label{tab:model_params}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Model & FLOPs (M) & Parameters & Size (MB) & Min. Accuracy (\%) \\ \midrule
+CNN-Tiny & 5.32 & 133 & 2.24 & 77.24 \\
+P4CNN-Tiny & 1.28 & 94 & 11.21 & 84.71 \\
+MCNN & 40.48 & 1,004 & 7.36 & 98.19 \\
+P4MCNN & 6.4 & 1,276 & --- & \textbf{99.77} \\
+CNN-Small & 98.5 & 2,450 & --- & 98.73 \\
+P4CNN-Small & 10.24 & 3,202 & --- & 99.65 \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Rule Inference Methodology}
+Beyond predicting the next state, we aim to extract explicit symbolic rules from the trained networks. We propose the \textbf{Simulated Evolution Neighbor Statistics (SENS)} algorithm:
+
+\begin{enumerate}
+\item \textbf{Statistics Collection}: For a given rule B$X$/S$Y$, we define B-elements and S-elements. A B-element corresponds to a transition from dead to living with $k$ neighbors; an S-element corresponds to living to living with $k$ neighbors.
+\item \textbf{Frequency Analysis}: We compute the occurrence frequency $q(x,k)$ and effective frequency $r(x,k)$ for each rule element, where $x \in \{0,1\}$ indicates the current state.
+\item \textbf{Posterior Probability}: The likelihood of rule element $(x,k)$ at iteration $n$ is:
+\begin{equation}
+p_n(x,k) = \lambda p_{n-1}(x,k) + (1-\lambda) r_n(x,k) [q_n(x,k)]^{0.3}
+\end{equation}
+\item \textbf{Candidate Generation}: Rule elements with $p_n > 0.5$ are combined via set operations to generate candidate rules $R = R_B \times R_S$.
+\item \textbf{Validation}: Each candidate rule is validated by simulating trajectories and comparing with ground truth via mean squared error.
+\end{enumerate}
+
+This approach successfully extracts rules from trained networks for 7 out of 8 test cases, with B35678/S5678 posing challenges due to data bias toward high neighbor counts.
+
+\subsection{Conway's Game of Life Rules}
+Let $\mathcal{G} \subset \mathbb{Z}^2$ be a finite 2D grid of size $H \times W$, where each cell $(i,j) \in \mathcal{G}$ has a binary state $s_{i,j}^{(t)} \in \{0,1\}$ at discrete time $t \in \mathbb{N}$. The cellular automaton state at time $t$ is defined as:
+
+\begin{equation}
+\mathbf{S}^{(t)} = \{s_{i,j}^{(t)} : (i,j) \in \mathcal{G}\} \in \{0,1\}^{H \times W}
+\end{equation}
+
+The evolution of the cellular automaton follows a deterministic update rule:
+
+\begin{equation}
+\mathbf{S}^{(t+1)} = f(\mathbf{S}^{(t)})
+\end{equation}
+where $f: \{0,1\}^{H \times W} \rightarrow \{0,1\}^{H \times W}$ is the global transition function.
+
+
+For Conway's Game of Life, the local transition rule for each cell $(i,j)$ is defined as:
+
+\begin{equation}
+s_{i,j}^{(t+1)} = \begin{cases}
+1 & \text{if } s_{i,j}^{(t)} = 1 \text{ and } n_{i,j}^{(t)} \in \{2,3\} \\
+1 & \text{if } s_{i,j}^{(t)} = 0 \text{ and } n_{i,j}^{(t)} = 3 \\
+0 & \text{otherwise}
+\end{cases}
+\end{equation}
+where $n_{i,j}^{(t)} = \sum_{(u,v) \in \mathcal{N}_{i,j}} s_{u,v}^{(t)}$ is the number of living neighbors in the Moore neighborhood:
+\begin{equation}
+\mathcal{N}_{i,j} = \{(i+\delta_i, j+\delta_j) : \delta_i, \delta_j \in \{-1,0,1\}, (\delta_i, \delta_j) \neq (0,0)\}
+\end{equation}
+
+\subsection{Results and Analysis}
+From Fig.\ref{fig:train_sample_01_00900}, we can observe that the multi-scale CNN architecture successfully learns the Conway's Game of Life dynamics with remarkable accuracy. The model maintains high fidelity even for two-step ahead prediction $t+2$, showing only minimal prediction errors scattered across a few isolated regions. The predicted state at $t+2$ closely matches the true system evolution. 
+
+Table \ref{tab:detailed_results} presents the detailed validation accuracy and training loss for each model-rule combination.
+
+\begin{table}[htbp]
+\centering
+\caption{Detailed Experimental Results: Training Loss / Validation Accuracy (\%)}
+\label{tab:detailed_results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Rule / Model & CNN-Tiny & CNN-Small & MCNN & P4CNN-Tiny & P4CNN-Small & P4MCNN \\ \midrule
+B3/S23 & 0.0037 / 100.00 & 0.0045 / 100.00 & 0.0055 / 99.97 & 0.3631 / 94.74 & 0.0037 / 100.00 & \textbf{0.0036 / 100.00} \\
+B36/S23 & 0.3451 / 90.46 & 0.0167 / 99.89 & 0.0262 / 98.94 & 0.4740 / 92.32 & 0.0274 / 99.77 & 0.0148 / 99.86 \\
+B3678/S34678 & 0.2035 / 92.36 & 0.0133 / 99.96 & 0.0660 / 98.19 & 0.4534 / 93.40 & 0.0159 / 99.96 & \textbf{0.0097 / 99.98} \\
+B35678/S5678 & 0.0165 / 99.24 & 0.0216 / 98.73 & 0.0955 / 99.52 & 0.0086 / 99.32 & 0.0058 / 99.65 & \textbf{0.0041 / 99.77} \\
+B2/S & 0.0231 / 99.74 & 0.0023 / 100.00 & 0.0024 / 100.00 & 0.6136 / 88.79 & 0.0022 / 100.00 & 0.0034 / 100.00 \\
+B345/S5 & 0.1710 / 96.25 & 0.0065 / 100.00 & 0.0039 / 100.00 & \textbf{0.0028 / 100.00} & \textbf{0.0028 / 100.00} & 0.0119 / 99.92 \\
+B13/S012V & 0.2489 / 92.30 & 0.0066 / 100.00 & 0.0045 / 99.99 & 0.1243 / 99.04 & 0.0016 / 100.00 & \textbf{0.0010 / 100.00} \\
+B2/S013V & 0.5533 / 77.24 & 0.0046 / 100.00 & 0.0025 / 100.00 & 0.7082 / 84.71 & 0.0091 / 100.00 & \textbf{0.0015 / 100.00} \\ \bottomrule
+\end{tabular}%
+}
+\end{table}
+
+From Figure.\ref{fig:Conway_learn}, we can observe that the learned rules closely approximate the true Conway's Game of Life dynamics. In the ``dead to living'' transition, predictions are almost exclusively concentrated at exactly 3 neighbors, precisely matching the birth rule. For ``living to living'' transitions, predictions are predominantly concentrated at 2 and 3 neighbors, perfectly aligning with the survival rule. The ``dead to dead'' and ``living to dead'' distributions demonstrate correct patterns for cell death or stasis under non-survival conditions, with prediction frequencies exhibiting exponential decay at incorrect neighbor counts.
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth]{fig/train_sample_01_00900.png}
+\caption{Multi-Scale Convolutional Neural Networks prediction accuracy for cellular automaton dynamics. Top row shows the system evolution from time $t$ to $t+1$, with perfect prediction accuracy. Bottom row demonstrates prediction at time $t+2$. The right panels display prediction errors (top) and state differences between consecutive time steps (bottom).}
+ \label{fig:train_sample_01_00900}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.75\linewidth]{fig/convolution_kernels_visualization_2channels.png}
+    \caption{Visualization of learned convolution kernels of 1st layer in dataset with rule B3/S23}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.8\linewidth]{fig/Conway_learn.png}
+\caption{Learned cellular automaton rules.}
+\label{fig:Conway_learn}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.75\linewidth]{fig/training_results_0-B3_S23.png}
+    \caption{Training curves of different network architectures on dataset with rule B3/S23}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{fig/no_suptitle_filters_B2_S_CNN-small_conv1.png}\\
+    \includegraphics[width=\linewidth]{fig/no_suptitle_filters_B13_S012V_CNN-small_conv1.png}
+    \caption{Trained convolution kernel weights of the 1st layer on dataset with rule B2/S (Up) and B13/S012V (Down)}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includesvg[width=\linewidth]{fig/stats_out-B3_S23-0013.svg}
+    \includesvg[width=\linewidth]{fig/stats_out-B36_S23-0043.svg}
+    \caption{Counting statistics of network-learned dynamics on whole dataset}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includesvg[width=\linewidth]{fig/stats_out-B234_S-0001.svg}
+    \includesvg[width=\linewidth]{fig/stats_out-B345_S5-0006.svg}
+    \caption{Counting statistics of network-learned dynamics on whole dataset}
+    \label{fig:placeholder}
+\end{figure}
+
+% The table of different life rules used in this work 
+% (in typst code, need to be translated into LaTeX)
+%
+% #align(center,
+%   table(
+%     columns: 4,
+%     align: (center, center, center, left),
+%     stroke: none,
+%     table.hline(),
+%     table.header([规则名称], [邻域大小], [邻域类型], [特性描述]),
+%     table.hline(stroke: 0.5pt),
+%     [`B36/S23`],      [3], [Moore],       [和 Conway 的原版生命游戏相似，但有自我复制结构],
+%     [`B3678/S34678`], [3], [Moore],       [活细胞群中的死细胞的行为与死细胞群中的活细胞的行为相同],
+%     [`B35678/S5678`], [3], [Moore],       [有不可预测行为的菱形斑点],
+%     [`B2/S`],         [3], [Moore],       [活细胞每代都会死亡，但该系统常常爆发],
+%     [`B234/S`],       [3], [Moore],       [单个的 $2 times 2$ 会演化为一个波斯地毯],
+%     [`B345/S5`],      [3], [Moore],       [周期极长的振荡器可以自然地出现],
+%     [`B13/S012V`],    [3], [Von Neumann], [],
+%     [`B2/S013V`],     [3], [Von Neumann], [],
+%     table.hline(),
+%   )
+% )
+%
+% With some of them translated into English
+% #figure(
+%   table(
+%     columns: 3, 
+%     align: (center, center, left),
+%     rows: 7, 
+%     row-gutter: 0.5em,
+%     stroke: none,
+%     table.hline(),
+%     table.header([Rule Symbol], [Rule Name], [Description]),
+%     table.hline(stroke: 0.5pt),
+%     [`B3/S23`], text(size: 16pt)[Life], text(size: 14pt)[John Conway's rule is by far the best known and most explored CA.],
+%     [`B36/S23`], text(size: 16pt)[HighLife], text(size: 14pt)[Very similar to Conway's Life but with an interesting replicator.],
+%     [`B3678/S34678`], text(size: 16pt)[Day & Night], text(size: 14pt)[Dead cells in a sea of live cells behave the same as live cells in a sea of dead cells.],
+%     [`B35678/S5678`], text(size: 16pt)[Diamoeba], text(size: 14pt)[Creates diamond-shaped blobs with unpredictable behavior.],
+%     [`B2/S`], text(size: 16pt)[Seeds], text(size: 14pt)[Every living cell dies every generation, but most patterns still explode.],
+%     [`B234/S`], text(size: 16pt)[Serviettes or Persian Rug], text(size: 14pt)[A single 2x2 block turns into a set of Persian rugs.],
+%     [`B345/S5`], text(size: 16pt)[LongLife], text(size: 14pt)[Oscillators with extremely long periods can occur quite naturally.],
+%     table.hline()
+%   )
+% )
+
+% The table of testing results of different models on different rule data. 
+% (in typst code, need to be translated into LaTeX)
+%
+% #figure(
+%   table(
+%     columns: 7,
+%     align: (horizon+center, right, right, right, right, right, right, right, right),
+%     stroke: none,
+%     table.hline(),
+%     table.header([演化规则 / 模型名], [CNN-tiny], [CNN-small], [MCNN], [P4CNN-tiny], [P4CNN-small], [P4MCNN]),
+%     table.hline(stroke: 0.5pt),
+%     [`B36/S23`], [0.7002\ 86.79%], [0.0045\ 100.00%], [0.0055\ 99.97%], [0.3631\ 94.74%], [0.0037\ 100%], [*0.0036\ 100.00%*], 
+%     [`B36/S23`],  [0.3451\ 90.46%], [*0.0167\ 99.89%*], [0.0262\ 98.94%], [0.4740\ 92.32%], [0.0274\ 99.77%], [0.0148\ 99.86%], 
+%     [#highlight[`B3678/S34678`]],  [0.2035\ 92.36%], [0.0133\ 99.96%], [0.0660\ 98.19%], [0.4534\ 93.40%], [0.0159\ 99.96%], [*0.0097\ 99.98%*], 
+%     [#highlight[`B35678/S5678`]],  [0.0165\ 99.24%], [0.0216\ 98.73%], [0.0955\ 99.52%], [0.0086\ 99.32%], [0.0058\ 99.65%], [*0.0041\ 99.77%*], 
+%     [`B2/S`],  [0.0231\ 99.74%], [*0.0023\ 100.00%*], [0.0024\ 100.00%], [0.6136\ 88.79%], [0.0022\ 100.00%], [0.0034\ 100.00%], 
+%     [`B345/S5`],   [0.1710\ 96.25%], [0.0065\ 100.00%], [0.0039\ 100.00%], [*0.0028\ 100.00%*], [*0.0028\ 100.00%*], [0.0119\ 99.92%], 
+%     [`B13/S012V`],  [0.2489\ 92.30%], [0.0066\ 100.00%], [0.0045\ 99.99%], [0.1243\ 99.04%], [0.0016\ 100.00%], [*0.0010\ 100.00%*], 
+%     [`B2/S013V`], [0.5533\ 77.24%], [0.0046\ 100.00%], [0.0025\ 100.00%], [0.7082\ 84.71%], [0.0091\ 100.00%], [*0.0015\ 100.00%*], 
+%     table.hline(),
+%   )
+% )
+
+% The table of model params and FLOPs
+% (in typst code, need to be translated into LaTeX)
+%
+% #figure(
+%   table(
+%     columns: 5,
+%     align: (horizon+center, right, right, right),
+%     stroke: none,
+%     table.hline(),
+%     table.header([模型名], [FLOPs (M)], [参数量], [估计大小 (MB)], [最低正确率 $(%)$]),
+%     table.hline(stroke: 0.5pt),
+%     [P4CNN-tiny], [$1.28$], [$94$], [11.21], [84.71],
+%     [CNN-tiny], [$5.32$], [$133$], [2.24], [77.24],
+%     [MCNN], [$40.48$], [$1,004$], [7.36], [98.19],
+%     [*P4MCNN*], [*$6.4$*], [*$1,276$*], [---], [*99.77*],
+%     [CNN-small], [$98.5$], [$2,450$], [---], [98.73%],
+%     [P4CNN-small], [$10.24$], [$3,202$], [---], [99.65],
+%     table.hline(),
+%   )
+% )
+
+% The table of model params and FLOPs
+% (in typst code, need to be translated into LaTeX)
+%
+% 
+
+
+\bibliographystyle{unsrt}
+\bibliography{ref}% 
+
+
+
+
+
+\end{document}
