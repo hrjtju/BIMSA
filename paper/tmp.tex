@@ -9,9 +9,9 @@
 \usepackage{hyperref}
 \usepackage{natbib}
 \usepackage{xcolor}
-\usepackage{svg}
 \usepackage{multirow}
 \usepackage{array}
+\usepackage{svg}
 
 % 添加作者格式所需的包
 \usepackage{authblk}
@@ -43,7 +43,7 @@
 \maketitle
 
 \begin{abstract}
-This paper presents a novel approach for learning complex physical principles from observational data using multi-scale group equivariant convolutional neural networks. We demonstrate the effectiveness of our method on two paradigmatic systems: Conway's Game of Life cellular automata. Our neural architecture successfully discovers the underlying dynamical rules governing these systems by learning appropriate mapping functions that capture both local and long-range spatial interactions across multiple scales. Furthermore, we propose a statistics-based rule inference algorithm that extracts explicit symbolic rules from the trained neural networks with high fidelity.
+This paper presents a novel approach for learning complex physical principles from observational data using multi-scale group equivariant convolutional neural networks. We demonstrate the effectiveness of our method on Conway's Game of Life cellular automata, the paradigmatic system. Our neural architecture successfully discovers the underlying dynamical rules governing these systems by learning appropriate mapping functions that capture both local and long-range spatial interactions across multiple scales. Furthermore, we propose a statistics-based rule inference algorithm that extracts explicit symbolic rules from the trained neural networks with high fidelity.
 
 \textbf{Keywords:} Lattice Dynamics, Multi-Scale Group Equivariant Convolutional Neural Networks, Physical Principles, Dynamical Systems, Group representation theory, Symbolic Rule Extraction
 \end{abstract}
@@ -51,7 +51,7 @@ This paper presents a novel approach for learning complex physical principles fr
 \section{Introduction}
 Recent advances in deep learning, specifically convolutional neural networks, have shown remarkable promise in modeling spatial patterns and discovering underlying physical principles from data \citep{lecun2015deep}. Meanwhile, complementary work in symbolic regression has shown remarkable success in discovering explicit mathematical expressions from data, with AI Feynman and AI Feynman 2.0 successfully recovering all equations from the Feynman Lectures on Physics through physics-inspired techniques and Pareto-optimal symbolic regression \citep{udrescu2020ai,udrescu2020ai2}. In molecular dynamics, the Deep Potential Molecular Dynamics (DeePMD) method has demonstrated how deep neural networks can learn many-body interatomic potentials from ab initio data while preserving essential physical symmetries (translation, rotation, and permutation invariance), achieving quantum mechanical accuracy at linear computational cost scaling \citep{zhang2018deep}.
 
-In this work, we extend these ideas by developing a multi-scale convolutional neural network architecture specifically designed for learning complex physical principles from observational data. Our approach leverages the connection between convolution kernels and differential operators to automatically discover the governing equations of dynamical systems without prior knowledge of their mathematical form. We demonstrate the effectiveness of our method on Conway's Game of Life and its variants, achieving near-perfect accuracy with remarkably compact network architectures (as few as 53 parameters).
+In this work, we extend these ideas by developing a multi-scale convolutional neural network architecture specifically designed for learning complex physical principles from observational data. Our approach leverages the connection between convolution kernels and differential operators to automatically discover the governing equations of dynamical systems without prior knowledge of their mathematical form. We demonstrate the effectiveness of our method on Conway's Game of Life and its variants, achieving near-perfect accuracy with remarkably compact network architectures.
 
 %Cellular automata (CA) represent a fundamental class of discrete dynamical systems that exhibit complex emergent behaviors from simple local rules \citep{wolfram2002new}. Conway's Game of Life, perhaps the most famous cellular automaton, demonstrates how intricate patterns and dynamics can arise from elementary birth-death rules \citep{conway1970game}.
 
@@ -81,8 +81,8 @@ where $\mathcal{N}(\mathbf{i})$ denotes the neighborhood of lattice site $\mathb
 \begin{equation}
 \text{supp}(\mathcal{T}^n[\delta_{\mathbf{i}}]) \subset B_{\mathbf{i}}(nv_{\max})
 \end{equation}
-\subsection{Physical Symmetry Principles}
 
+\subsection{Physical Symmetry Principles}
 \subsubsection{Time Translation Invariance}
 
 The evolution rules are independent of the choice of absolute time origin. Formally, for any temporal shift $\tau \in \mathbb{Z}$:
