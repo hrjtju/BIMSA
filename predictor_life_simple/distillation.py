@@ -26,8 +26,9 @@ from args import Args
 import model_conv
 
 import os
+import re
 
-BIMSA_LIFE_DIR = os.environ.get('BIMSA_LIFE_DIR', "./predictor_life/datasets/life/")
+BIMSA_LIFE_DIR = os.environ.get('BIMSA_LIFE_DIR', "./predictor_life_simple/datasets")
 
 
 class InterpretableCA(nn.Module):
@@ -40,7 +41,7 @@ class InterpretableCA(nn.Module):
     """
     __version__ = '0.1.0-distill'
 
-    def __init__(self, hidden_dim: int = 16, num_classes: int = 2):
+    def __init__(self, hidden_dim: int = 64, num_classes: int = 2, num_heads: int = 8):
         """
         Args:
             hidden_dim: 决策层隐藏层维度
@@ -50,7 +51,7 @@ class InterpretableCA(nn.Module):
         
         # 第一层：固定邻居计数器（不可训练）
         # 使用 3x3 卷积核，中心为0（不计入自身），周围8格为1（邻居）
-        self.counter = nn.Conv2d(1, 2, kernel_size=3, padding=1, bias=False)
+        self.counter = nn.Conv2d(1, 2, kernel_size=3, padding=1, bias=False, padding_mode="circular")
         # 初始化计数核：Moore邻域
         count_kernel = torch.tensor([[[1., 1., 1.],
                                     [1., 0., 1.],
@@ -62,12 +63,17 @@ class InterpretableCA(nn.Module):
         
         # 决策层：输入为 [细胞自身状态, 邻居计数] -> 输出下一状态
         # 使用1x1卷积实现全连接（保持空间结构）
-        self.decision = nn.Sequential(
-            nn.Conv2d(2, hidden_dim, kernel_size=1),
-            nn.ReLU(),
-            nn.Conv2d(hidden_dim, num_classes, kernel_size=1)
-        )
-        
+        self.heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(2, hidden_dim, kernel_size=1),
+                nn.ReLU(),
+                nn.Conv2d(hidden_dim, num_classes, kernel_size=1)
+            ) for _ in range(num_heads)
+        ])
+
+        # TODO: Routing
+        self.fusion_weight = nn.Parameter(torch.ones(num_heads))
+
     def forward(self, x: Float[Array, "batch 1 h w"]) -> Float[Array, "batch 2 h w"]:
         """
         Args:
@@ -82,7 +88,11 @@ class InterpretableCA(nn.Module):
         features = torch.cat([x, neighbor_count], dim=1)  # [batch, 2, H, W]
         
         # 决策层
-        output = self.decision(features)  # [batch, 2, H, W]
+        head_outputs = [head(features) for head in self.heads]
+        output = torch.stack(head_outputs, dim=0)  # [num_heads, B, 2, H, W]
+        
+        weights = softmax(self.fusion_weight, dim=0)
+        output = torch.einsum('n,nbchw->bchw', weights, output)
         
         return output
     
@@ -103,30 +113,33 @@ class InterpretableCA(nn.Module):
         rule_table = {}
         
         with torch.no_grad():
-            for cell_state in [0, 1]:
-                for neighbor_count in range(9):  # 0-8个邻居
-                    # 构造输入
-                    x = torch.tensor([[cell_state, neighbor_count]], dtype=torch.float32).cuda()
-                    x = x.view(1, 2, 1, 1)  # [batch=1, channels=2, H=1, W=1]
+            for s in [0, 1]:
+                for k in range(9):
+                    inp = torch.tensor([[s, k/8]], dtype=torch.float32)
+                    inp = inp.view(1, 2, 1, 1).to(next(self.parameters()).device)
                     
-                    # 手动计算决策层
-                    features = self.decision[0](x)  # Conv2d
-                    features = self.decision[1](features)  # ReLU
-                    logits = self.decision[2](features)  # Conv2d
+                    # 完整前向（含所有头融合）
+                    logits = self.forward(inp[:, 0:1, :, :])  # 注意：forward期望[B,1,H,W]
+                    # 上面构造的inp已经是[B,2,1,1]，但forward内部会重新算count
+                    # 应该直接调用各组件：
+                    features = inp
+                    head_outputs = [head(features) for head in self.heads]
+                    weights = softmax(self.fusion_weight, dim=0)
+                    output = sum(w * h for w, h in zip(weights, head_outputs))
                     
-                    pred = logits.argmax(dim=1).item()
-                    prob = softmax(logits.view(-1), dim=0)[pred].item()
+                    probs = softmax(output.view(-1), dim=0)
+                    pred = output.argmax(dim=1).item()
                     
-                    rule_table[(cell_state, neighbor_count)] = {
+                    rule_table[(s, k)] = {
                         'prediction': pred,
-                        'probability': prob,
-                        'logits': logits.view(-1).tolist()
+                        'probability': probs[pred].item(),
+                        'logits': output.view(-1).tolist()
                     }
         
         return rule_table
 
-
 def distillation_loss(
+    student: InterpretableCA, 
     student_logits: Tensor,
     teacher_logits: Tensor,
     labels: Tensor,
@@ -153,7 +166,8 @@ def distillation_loss(
     # 硬标签损失：交叉熵
     student_softmax = softmax(rearrange(student_logits, "b c h w -> (b h w) c"), dim=-1)
     labels_flat = rearrange(labels, "b h w -> (b h w)").long()
-    hard_loss = cross_entropy(student_softmax, labels_flat)
+    weight = torch.tensor([1.0, 10.0]).cuda()
+    hard_loss = cross_entropy(student_softmax, labels_flat, weight)
     
     # 软标签损失：KL散度
     # 对logits进行温度缩放
@@ -161,10 +175,17 @@ def distillation_loss(
     teacher_soft = softmax(rearrange(teacher_logits / temperature, "b c h w -> (b h w) c"), dim=-1)
     soft_loss = kl_div(student_soft, teacher_soft, reduction='batchmean') * (temperature ** 2)
     
-    # 总损失
-    total_loss = alpha * hard_loss + (1 - alpha) * soft_loss
+    l1_reg = 0
+    param_all = 0
+    for name, param in student.named_parameters():
+        if 'weight' in name and param.requires_grad == True:
+            l1_reg = l1_reg + torch.linalg.vector_norm(param, ord=1, dim=None)
+            param_all += param.numel()
     
-    return total_loss, hard_loss, soft_loss
+    # 总损失
+    total_loss = alpha * hard_loss + (1 - alpha) * soft_loss + 0.1 * l1_reg / param_all
+    
+    return total_loss, hard_loss, soft_loss, l1_reg
 
 
 def train_student(
@@ -200,7 +221,7 @@ def train_student(
     )
     
     # 学习率调度器
-    use_lr_scheduler = args["lr_scheduler"]["name"] is not None
+    use_lr_scheduler = args["lr_scheduler"].get("name", None) is not None
     if use_lr_scheduler:
         scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(
             optimizer, **args["lr_scheduler"]["args"]
@@ -221,6 +242,7 @@ def train_student(
         running_loss = 0.0
         running_hard_loss = 0.0
         running_soft_loss = 0.0
+        running_reg_loss = 0.0
         correct = 0
         total = 0
         
@@ -239,7 +261,8 @@ def train_student(
                 student_outputs = student_model(inputs)
                 
                 # 计算蒸馏损失
-                loss, hard_loss, soft_loss = distillation_loss(
+                loss, hard_loss, soft_loss, l1_reg = distillation_loss(
+                    student_model, 
                     student_outputs, teacher_outputs, labels,
                     temperature=temperature, alpha=alpha
                 )
@@ -262,6 +285,7 @@ def train_student(
                 running_loss += loss.item()
                 running_hard_loss += hard_loss.item()
                 running_soft_loss += soft_loss.item()
+                running_reg_loss += l1_reg.item()
                 
                 predicted = student_outputs.argmax(1)
                 total += labels.numel()
@@ -269,25 +293,29 @@ def train_student(
                 
                 # 记录到wandb
                 if idx % 10 == 0:
-                    wandb.log({
-                        "distill/total_loss": loss.item(),
-                        "distill/hard_loss": hard_loss.item(),
-                        "distill/soft_loss": soft_loss.item(),
-                        "distill/gradient_norm": norm.item(),
-                    })
+                    wandb.log(
+                        data={
+                        "train/total_loss": loss.item(),
+                        "train/hard_loss": hard_loss.item(),
+                        "train/soft_loss": soft_loss.item(),
+                        "train/reg_loss": l1_reg.item(),
+                        "train/gradient_norm": norm.item(),
+                        },
+                        step=idx
+                        )
                 
-                p.set_postfix_str(f"loss {loss.item()}")
+                p.set_postfix_str(f"loss {loss.item():.4e}")
         
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100. * correct / total
         
         print(f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.2f}%")
-        wandb.log({
-            "distill/train_epoch_loss": epoch_loss,
-            "distill/train_epoch_acc": epoch_acc,
-            "distill/train_hard_loss": running_hard_loss / len(train_loader),
-            "distill/train_soft_loss": running_soft_loss / len(train_loader),
-        })
+        # wandb.log({
+        #     "distill/train_epoch_loss": epoch_loss,
+        #     "distill/train_epoch_acc": epoch_acc,
+        #     "distill/train_hard_loss": running_hard_loss / len(train_loader),
+        #     "distill/train_soft_loss": running_soft_loss / len(train_loader),
+        # })
         
         # 验证阶段
         student_model.eval()
@@ -306,7 +334,7 @@ def train_student(
         
         val_acc = 100. * val_correct / val_total
         print(f"Val Acc: {val_acc:.2f}%")
-        wandb.log({"distill/val_epoch_acc": val_acc})
+        wandb.log({"val/val_epoch_acc": val_acc})
         
         # 保存最佳模型
         if val_acc > best_acc:
@@ -319,6 +347,9 @@ def train_student(
         if (epoch + 1) % 10 == 0:
             torch.save(student_model.state_dict(),
                       f'checkpoint_student_epoch{epoch+1}.pth')
+        
+        if epoch_loss < 0.05 or val_acc > 99:
+            break
     
     return student_model
 
@@ -348,8 +379,8 @@ def extract_and_print_rule(student_model: InterpretableCA):
             elif cell_state == 1 and pred == 1:  # 存活 -> 存活（Survival）
                 survival_conditions.append((neighbor_count, prob))
     
-    birth_str = ",".join([str(n) for n, _ in sorted(birth_conditions)])
-    survival_str = ",".join([str(n) for n, _ in sorted(survival_conditions)])
+    birth_str = "".join([str(n) for n, _ in sorted(birth_conditions)])
+    survival_str = "".join([str(n) for n, _ in sorted(survival_conditions)])
     
     print(f"\nB{birth_str}/S{survival_str}")
     print(f"\nBirth conditions: {birth_conditions}")
@@ -413,9 +444,16 @@ def main():
     print(f"Created student model: {student_model.__version__}")
     print(f"Counter kernel:\n{student_model.get_counter_kernel().squeeze()}")
     
+    # 匹配规则字符串
+    s = re.findall(r"B\d*_S\d*", args.teacher_checkpoint)[0]
+    
+    data_dir = os.path.join(BIMSA_LIFE_DIR, f"200-200-{s}")
+    assert os.path.exists(data_dir), f"data dir [{data_dir}] don't exist."
+    print(f"Targeted data rule: {s}")
+    
     # 数据加载器
     train_loader = get_dataloader(
-        data_dir=BIMSA_LIFE_DIR,
+        data_dir=data_dir,
         batch_size=args_dict["dataloader"]["train_batch_size"],
         shuffle=args_dict["dataloader"]["train_shuffle"],
         num_workers=args_dict["dataloader"]["train_num_workers"],
@@ -423,7 +461,7 @@ def main():
     )
     
     test_loader = get_dataloader(
-        data_dir=BIMSA_LIFE_DIR,
+        data_dir=data_dir,
         batch_size=args_dict["dataloader"]["test_batch_size"],
         shuffle=args_dict["dataloader"]["test_shuffle"],
         num_workers=args_dict["dataloader"]["test_num_workers"],
@@ -448,11 +486,17 @@ def main():
     torch.save(student_model.state_dict(), f'final_student_{student_model.__version__}.pth')
     print(f"\nSaved final student model")
     
+    # print(student_model.state_dict())
+    
     # 保存规则表
     import json
     with open('extracted_rule.json', 'w') as f:
         json.dump({f"{k[0]}_{k[1]}": v for k, v in rule_table.items()}, f, indent=2)
     print("Saved extracted rule to extracted_rule.json")
+    
+    with open('distilled.txt', 'w') as f:
+        f.write(str(student_model.state_dict()))
+    print("Saved student_model params to distilled.txt")
 
 
 if __name__ == "__main__":

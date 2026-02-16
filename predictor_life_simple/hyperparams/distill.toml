@@ -10,27 +10,27 @@ alpha = 0.5        # 硬标签损失权重（1-alpha为软标签损失权重）
                    # alpha=0.5 表示硬标签和软标签损失各占一半
 
 [training]
-epochs = 1
+epochs = 10
 r_ratio_start = 0.5   # 学生网络不使用重构损失，此参数可忽略
 r_ratio_min = 0.0
 r_ratio_decay = 0.0
 
 [optimizer]
-name = "Adam"
-args = { lr = 0.001, weight_decay = 1e-4 }
+name = "AdamW"
+args = { lr = 0.01 }
 
 [lr_scheduler]
-name = "StepLR"  # 可选: "StepLR", "CosineAnnealingLR", null
-args = { step_size = 20, gamma = 0.5 }
+# name = "StepLR"  # 可选: "StepLR", "CosineAnnealingLR", null
+# args = { step_size = 20, gamma = 0.5 }
 # 使用 CosineAnnealingLR 时:
 # name = "CosineAnnealingLR"
 # args = { T_max = 50, eta_min = 1e-6 }
 
 [dataloader]
-train_batch_size = 32
+train_batch_size = 64
 train_shuffle = true
 train_num_workers = 4
-test_batch_size = 32
+test_batch_size = 64
 test_shuffle = false
 test_num_workers = 4
 
