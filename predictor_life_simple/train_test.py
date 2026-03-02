@@ -516,6 +516,9 @@ def train_model(
                   f"avg_train_acc: {np.mean(scalar_dict['train_acc'][-30:]):.4f} | \n\n", flush=True)
     
     plot_and_save_scalar(scalar_dict, save_base_str)
+    
+    # TODO: 输出整个网络的权重
+    
     torch.cuda.empty_cache()
     # plot_network_analysis(model, f"{start_time_str}_{args['wandb']['entity']}")
 
