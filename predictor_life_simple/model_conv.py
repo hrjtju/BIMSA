@@ -212,8 +212,7 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
     def __init__(self):
         super().__init__()
 
-        # TODO: Change N to 8 to enable 8-way rotation invariance
-        r2_act = gspaces.Rot2dOnR2(N=8)
+        r2_act = gspaces.Rot2dOnR2(N=4)
         
         in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
         hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
@@ -246,6 +245,47 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
         """返回普通 nn.Module，等变性固化，推理更快。"""
         return torch.jit.trace(self, torch.randn(1, 1, 200, 200))
     
+class SimpleP4MCNNSmall(GroupEquivariantCNN):
+    
+    __version__ = '0.5.0-p4'
+
+    # ---------- 内部工具 ----------
+    def __init__(self):
+        super().__init__()
+
+        # TODO: Change N to 8 to enable 8-way rotation invariance
+        r2_act = gspaces.FlipRot2dOnR2(N=4)
+        
+        in_type = enn.FieldType(r2_act, 1 * [r2_act.trivial_repr])
+        hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
+        out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
+
+        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=5,
+                                stride=1, padding=2, padding_mode="circular", bias=False)
+        self.bn1   = enn.InnerBatchNorm(hid_type)
+        self.act1  = enn.ReLU(hid_type, inplace=True)
+        self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=5,
+                                stride=1, padding=2, padding_mode="circular", bias=False)
+        self.bn2   = enn.InnerBatchNorm(hid_type)
+        self.act2  = enn.ReLU(hid_type, inplace=True)
+        self.conv3 = enn.R2Conv(hid_type, out_type, kernel_size=5,
+                                stride=1, padding=2, padding_mode="circular", bias=True)
+
+        self.in_type  = in_type
+        self.out_type = out_type
+
+    def forward(self, x: Float[Array, "batch 2 w h"]) -> Float[Array, "batch 2 w h"]:
+        x: enn.GeometricTensor = enn.GeometricTensor(x, self.in_type)
+
+        x = self.act1(self.bn1(self.conv1(x)))
+        x = self.act2(self.bn2(self.conv2(x)))
+        x = self.conv3(x)
+
+        return x.tensor
+
+    def export(self) -> nn.Module:
+        """返回普通 nn.Module，等变性固化，推理更快。"""
+        return torch.jit.trace(self, torch.randn(1, 1, 200, 200))
 
 class SimpleP4CNNSmalL2Layer(GroupEquivariantCNN):
     
