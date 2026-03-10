@@ -510,6 +510,8 @@ def train_model(
                 and np.mean(scalar_dict["train_acc"][-30:]) > 99
                 ):
             print("Early Stopped.")
+            torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
+                       f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
             break
         else:
             print(f"\n\n| val_epoch_acc: {val_epoch_acc:.2f}% | epoch: {epoch:>02d} | avg_train_loss: {np.mean(scalar_dict['train_loss'][-30:]):.4f} | "
@@ -524,12 +526,9 @@ def train_model(
 
 
 if __name__ == "__main__":
-    from pyinstrument import Profiler
     from pprint import pprint
     
     torch.random.manual_seed(42)
-    
-    profiler = Profiler()
     
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
@@ -547,11 +546,4 @@ if __name__ == "__main__":
     print("Starting training...")
     # Call the training function
     
-    profiler.start()
-    
     train_model(args_dict)
-    
-    profiler.stop()
-    
-    with open('profile.html', 'w') as f: 
-        f.write(profiler.output_html())
