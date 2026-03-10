@@ -265,7 +265,7 @@ def train_model(
     print(f"\nPicking Dataset: {dataset_dir}\nSaving Base Directory: {save_base_str}\n\n")
     
     if args["wandb"]["turn_on"]:
-        wandb.init(project="predictor_life_simple", name=args["wandb"]["entity"])
+        wandb.init(project="predictor_life_simple", name=f"{args['wandb']['entity']}-{args['data_rule'].replace('/', '_')}")
     else:
         wandb.init(mode="disabled")
     
