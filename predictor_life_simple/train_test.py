@@ -528,6 +528,8 @@ def train_model(
 if __name__ == "__main__":
     from pprint import pprint
     
+    torch.cuda.empty_cache()
+    
     torch.random.manual_seed(42)
     
     # reads the command line arguments
