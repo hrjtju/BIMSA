@@ -21,7 +21,7 @@ wandb
 *.svg
 
 # *.ipynb
-*.pt
-*.pth
+# *.pt
+# *.pth
 
 visualization.md
