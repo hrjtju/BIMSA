@@ -42,12 +42,13 @@ class SimpleCNN(nn.Module):
         # x = torch.sigmoid(x)
         return x
 
+#! Simple CNN Small 3 Layer
 class SimpleCNNSmall(nn.Module):
     __version__ = '0.1.0'
 
     def __init__(self):
         super(SimpleCNNSmall, self).__init__()
-        self.conv1 = nn.Conv2d(1, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular")
+        self.conv1 = nn.Conv2d(1, 8, kernel_size=11, stride=1, padding=5, padding_mode="circular")
         self.bn1 = nn.BatchNorm2d(8)
         self.act1 = nn.ReLU()
         self.conv2 = nn.Conv2d(8, 8, kernel_size=5, stride=1, padding=2, padding_mode="circular")
@@ -218,8 +219,8 @@ class SimpleP4CNNSmall(GroupEquivariantCNN):
         hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
         out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
 
-        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=5,
-                                stride=1, padding=2, padding_mode="circular", bias=False)
+        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=11,
+                                stride=1, padding=5, padding_mode="circular", bias=False)
         self.bn1   = enn.InnerBatchNorm(hid_type)
         self.act1  = enn.ReLU(hid_type, inplace=True)
         self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=5,
@@ -260,8 +261,8 @@ class SimpleP4MCNNSmall(GroupEquivariantCNN):
         hid_type = enn.FieldType(r2_act, 8 * [r2_act.regular_repr])   
         out_type = enn.FieldType(r2_act, 2 * [r2_act.trivial_repr])   
 
-        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=5,
-                                stride=1, padding=2, padding_mode="circular", bias=False)
+        self.conv1 = enn.R2Conv(in_type, hid_type, kernel_size=11,
+                                stride=1, padding=5, padding_mode="circular", bias=False)
         self.bn1   = enn.InnerBatchNorm(hid_type)
         self.act1  = enn.ReLU(hid_type, inplace=True)
         self.conv2 = enn.R2Conv(hid_type, hid_type, kernel_size=5,
