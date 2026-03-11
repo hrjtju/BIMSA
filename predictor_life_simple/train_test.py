@@ -454,6 +454,8 @@ def train_model(
                       f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
 
         if flag == True:
+            torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
+                       f"best_simple_life_{model_class.__name__}_{model_class.__version__}.pth")
             break
         
         epoch_loss = running_loss / len(train_loader)
