@@ -343,12 +343,13 @@ def train_model(
             global_idx = epoch * len(train_loader) + idx
             
             # Forward pass
-            inputs_o, labels_o = inputs.clone(), labels.clone()
-            inputs_t, labels_t = apply_translation(inputs_o, labels_o)
+            # fix tensor.clone() to tensor.detach().clone() to avoid messy gradients
+            inputs_o, labels_o = inputs.detach().clone(), labels.detach().clone()
             inputs_r, labels_r = apply_rotation(inputs_o, labels_o)
+            inputs_tr, labels_tr = apply_translation(inputs_r, labels_r)
             
             # Concatenate original, translated, and rotated inputs and labels
-            x, y = torch.cat([inputs_o, inputs_t, inputs_r], dim=0), torch.cat([labels_o, labels_t, labels_r], dim=0)
+            x, y = torch.cat([inputs_o, inputs_tr], dim=0), torch.cat([labels_o, labels_tr], dim=0)
             inputs: Float[Array, "batch 2 w h"] = x.to(device)
             labels: Float[Array, "batch 1 w h"] = y.to(device)
             
@@ -420,7 +421,7 @@ def train_model(
                         print(f"Further Testing... ")
                         rule_loss_f = rule_stats.test_rule_str(s, k=20)
                         
-                        if rule_loss_f < 1e-5:
+                        if rule_loss_f < 1e-5 and epoch > 2:
                         
                             print(
                                 f"""
