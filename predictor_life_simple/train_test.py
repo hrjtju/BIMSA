@@ -320,8 +320,9 @@ def train_model(
             use_lr_scheduler = True
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
+    von_neumann_rule = 'V' in args['data_rule']
     
-    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_'))
+    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_')) if von_neumann_rule else None
     
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
@@ -404,7 +405,7 @@ def train_model(
                 })
                 
             # -------- RULE STATS --------
-            if (idx+1) % 200 == 0 and item_acc > 95:
+            if (idx+1) % 200 == 0 and item_acc > 95 and rule_stats is not None:
                 rule_stats.load_model(model)
                 stat_ls = rule_stats.get_transform_stats()
                 counters = rule_stats.plot_transform_stats(stat_ls, f"result/predictor_life_simple/{save_base_str}", global_idx//200)
