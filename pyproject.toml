@@ -28,6 +28,7 @@ dependencies = [
     "torch>=2.10.0",
     "torch-geometric>=2.7.0",
     "torchinfo>=1.8.0",
+    "torchvision>=0.25.0",
     "tqdm>=4.67.1",
     "wandb>=0.21.0",
 ]

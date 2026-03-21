@@ -236,6 +236,7 @@ dependencies = [
     { name = "torch", version = "2.10.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'win32'" },
     { name = "torch-geometric" },
     { name = "torchinfo" },
+    { name = "torchvision" },
     { name = "tqdm" },
     { name = "wandb" },
 ]
@@ -266,6 +267,7 @@ requires-dist = [
     { name = "torch", marker = "sys_platform == 'win32'", specifier = ">=2.10.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torch-geometric", specifier = ">=2.7.0" },
     { name = "torchinfo", specifier = ">=1.8.0" },
+    { name = "torchvision", specifier = ">=0.25.0" },
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "wandb", specifier = ">=0.21.0" },
 ]
