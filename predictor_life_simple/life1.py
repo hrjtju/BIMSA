@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from loguru import logger
 from scipy.signal import convolve2d
+from tqdm import tqdm
 
 plt.rcParams["animation.html"] = "jshtml"
 
@@ -19,7 +20,8 @@ import seagull as sgl
 import seagull.lifeforms as slf
 from seagull.rules import conway_classic, life_rule
 
-from tqdm import tqdm
+from larger_than_life import LTL_FILENAME_PATTERN, generate_neighborhood_matrix
+
 
 
 ## ==================== Monkey Patch ======================
@@ -44,18 +46,37 @@ def life_rule_monkey_patch(X: np.ndarray, rulestring: str) -> np.ndarray:
     np.ndarray
         Updated board after applying the rule
     """
-    birth_req, survival_req, von_neumann = _parse_rulestring_monkey_patch(rulestring)
-    neighbors = _count_neighbors_monkey_patch(X, von_neumann)
-    birth_rule = (X == 0) & (np.isin(neighbors, birth_req))
-    survival_rule = (X == 1) & (np.isin(neighbors, survival_req))
+    data_dict = _parse_rulestring_monkey_patch(rulestring)
+    
+    match data_dict["type"]:
+        case "classical":
+            kernel = generate_neighborhood_matrix(
+                neighbor_type="NN" if data_dict["von_neumann"] else "NM",
+                radius=1,
+                center=False
+            )
+            neighbors = _count_neighbors_monkey_patch(X, kernel)
+        case "LtL":
+            kernel = generate_neighborhood_matrix(
+                neighbor_type=data_dict["neighborhood"],
+                radius=int(data_dict["radius"]),
+                center=bool(int(data_dict["middle"]))
+            )
+            neighbors = _count_neighbors_monkey_patch(X, kernel)
+        case _:
+            raise NotImplementedError
+    
+    birth_rule = (X == 0) & (np.isin(neighbors, data_dict["birth_neighbors"]))
+    survival_rule = (X == 1) & (np.isin(neighbors, data_dict["survival_neighbors"]))
+    
     return birth_rule | survival_rule
 
 def _parse_rulestring_monkey_patch(r: str) -> Tuple[List[int], List[int]]:
     """Parse a rulestring"""
-    pattern = re.compile("B([0-8]+)?/S([0-8]+)?V?")
+    base_pattern = re.compile("B([0-8]+)?/S([0-8]+)?V?")
     von_neumann = False
     
-    if pattern.match(r):
+    if base_pattern.match(r):
         if r.endswith("V"):
             r = r[:-1]
             von_neumann = True
@@ -63,21 +84,28 @@ def _parse_rulestring_monkey_patch(r: str) -> Tuple[List[int], List[int]]:
         birth, survival = r.split("/")
         birth_neighbors = [int(s) for s in birth if s.isdigit()]
         survival_neighbors = [int(s) for s in survival if s.isdigit()]
+        
+        data_dict = {
+                        "type": "classical", 
+                        "birth_neighbors": birth_neighbors,
+                        "survival_neighbors": survival_neighbors,
+                        "von_neumann": von_neumann
+                    }
+    elif LTL_FILENAME_PATTERN.match(r):
+        data_dict = LTL_FILENAME_PATTERN.match(r).groupdict()
+        data_dict["birth_neighbors"] = range(int(data_dict["bmin"]), int(data_dict["bmax"])+1)
+        data_dict["survival_neighbors"] = range(int(data_dict["smin"]), int(data_dict["smax"])+1)
+        data_dict["type"] = "LtL"
     else:
-        msg = f"Rulestring ({r}) must satisfy the pattern {pattern}"
+        msg = f"Rulestring ({r}) must satisfy the pattern {base_pattern}"
         logger.error(msg)
         raise ValueError(msg)
 
-    return birth_neighbors, survival_neighbors, von_neumann
+    return data_dict
 
-def _count_neighbors_monkey_patch(X: np.ndarray, von_neumann: bool) -> np.ndarray:
+def _count_neighbors_monkey_patch(X: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """Get the number of neighbors in a binary 2-dimensional matrix"""
-    if von_neumann:
-        kernel = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-    else:
-        kernel = np.ones((3, 3))
-        
-    n = convolve2d(X, kernel, mode="same", boundary="wrap") - X
+    n = convolve2d(X, kernel, mode="same", boundary="wrap")
     return n
 
 def board_init_monkey_patch(self, size=(100, 100), p_pos=0.1):
@@ -168,7 +196,7 @@ def main():
     rand_loc = lambda c: (random.randint(*min_max(c, 0)), random.randint(*min_max(c, 1)))
     add_rand_loc = lambda c: board.add(c(), loc=rand_loc(c))
     
-    for i in range(1, 101):
+    for i in tqdm(range(1, 101)):
         board = sgl.Board((args.size, args.size), p_pos=0.6)
         
         for _ in range(int(args.size**0.25)+1):
@@ -186,7 +214,10 @@ def main():
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
         
-        np.save(f"{dest_dir}/{i}.npy", sim.get_history(exclude_init=True))
+        res = sim.get_history(exclude_init=True)
+        # print(res.shape)
+        
+        np.save(f"{dest_dir}/{i}.npy", res)
     
     # plt.imshow(sim.get_history()[-1])
     # sim.animate()

@@ -34,6 +34,9 @@ dependencies = [
     "wandb>=0.21.0",
 ]
 
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
 
 [[tool.uv.index]]
 name = "pytorch-cu130"

@@ -269,6 +269,9 @@ def train_model(
     start_time_str = f"{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}".split('.')[0]
     save_base_str = f"{start_time_str}_{args['wandb']['entity']}__{rule_data_str}"
     
+    if not os.path.exists(f"result/predictor_life_simple/{save_base_str}"):
+        os.mkdir(f"result/predictor_life_simple/{save_base_str}")
+    
     print(f"\nPicking Dataset: {dataset_dir}\nSaving Base Directory: {save_base_str}\n\n")
     
     if args["wandb"]["turn_on"]:
@@ -330,7 +333,7 @@ def train_model(
     von_neumann_rule = 'V' in args['data_rule']
     label_smoothing = 0.5
     
-    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_')) if not von_neumann_rule else None
+    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_')) if (not von_neumann_rule and "M" not in args['data_rule']) else None
     
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
@@ -585,7 +588,7 @@ if __name__ == "__main__":
     in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B3678/S34678", help="Life rules")
     in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
     in_profile.add_argument("-w", "--sysSize", dest="sys_size", type=int, default=200, help="System size")
-    in_profile.add_argument("-b", "--batchSize", dest="batch_size", type=int, default=128, help="Batch size")
+    in_profile.add_argument("-b", "--batchSize", dest="batch_size", type=int, default=8, help="Batch size")
     
     in_profile_args = in_profile.parse_args()
 
