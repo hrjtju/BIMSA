@@ -43,6 +43,7 @@ torch2numpy = lambda x: x[0].permute(1, 2, 0).clone().detach().cpu().numpy()
 
 scalar_dict = {
     "train_loss": [],
+    "equivariant_loss": [],
     "train_acc": [],
     "grad_norm": [],
     "val_acc": [],
@@ -171,7 +172,7 @@ def plot_network_analysis(model: nn.Module):
 # Assuming dataloader and model_conv are already defined
 # Replace these with your actual imports or definitions
 
-def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
+def apply_translation(grids: Tuple[Tensor], t: Tuple[float, float] = None) -> Tuple[Tensor, Tuple[float, float]]:
     """
     Applies a spatial translation to the grid
     
@@ -184,15 +185,19 @@ def apply_translation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
     result = []
     
     N = grids[0].shape[-1]
-    i, j = np.random.randint(0, N, size=2)
+    
+    if t is None:
+        i, j = np.random.randint(0, N, size=2)
+    else:
+        i, j = t
     
     for grid in grids:
         translated_grid = torch.roll(grid, shifts=(-i, -j), dims=(-2, -1))
         result.append(translated_grid)
         
-    return tuple(result)
+    return tuple(result), (i, j)
 
-def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
+def apply_rotation(grids: Tuple[Tensor], angle: float = None) -> Tuple[Tuple[Tensor], float]:
     """
     Applies a rotation to the grid.
     
@@ -204,7 +209,9 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
         Tensor: Rotated grid.
     """
     result = []
-    angle = np.random.choice([0, 90, 180, 270])  # Randomly choose an angle
+    
+    if angle is None:
+        angle = np.random.choice([0, 90, 180, 270])  # Randomly choose an angle
     
     for grid in grids:
         # Rotate the grid using PyTorch's tensor operations
@@ -218,7 +225,7 @@ def apply_rotation(*grids: Tuple[Tensor]) -> Tuple[Tensor]:
             rotated_grid = grid.transpose(-2, -1).flip(-2)
         result.append(rotated_grid)
         
-    return tuple(result)
+    return tuple(result), angle
 
 def show_image_grid(inputs: Tensor|Float[Array, "batch 2 w h"], 
                     labels: Tensor|Float[Array, "batch 2 w h"], 
@@ -272,7 +279,7 @@ def train_model(
     # TODO: Update Dataset Name
     train_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
         data_dir=dataset_dir,
-        batch_size=args["dataloader"]["train_batch_size"],
+        batch_size=args.get("batch_size", args["dataloader"]["train_batch_size"]),
         shuffle=args["dataloader"]["train_shuffle"],
         num_workers=args["dataloader"]["train_num_workers"],
         split='train'
@@ -281,7 +288,7 @@ def train_model(
     # TODO: Update Dataset Name
     test_loader: Iterable[Tuple[Float[Array, "batch 2 w h"], Float[Array, "batch 2 w h"]]] = get_dataloader(
         data_dir=dataset_dir,
-        batch_size=args["dataloader"]["test_batch_size"],
+        batch_size=args.get("batch_size", args["dataloader"]["train_batch_size"]) * 2,
         shuffle=args["dataloader"]["test_shuffle"],
         num_workers=args["dataloader"]["test_num_workers"],
         split='test'
@@ -321,8 +328,9 @@ def train_model(
             scheduler = getattr(optim.lr_scheduler, args["lr_scheduler"]["name"])(optimizer, **args["lr_scheduler"]["args"])
 
     von_neumann_rule = 'V' in args['data_rule']
+    label_smoothing = 0.5
     
-    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_')) if von_neumann_rule else None
+    rule_stats = RuleSimulatorStats(rule=args['data_rule'].replace('/', '_')) if not von_neumann_rule else None
     
     for epoch in range(epochs:=args["training"]["epochs"]):
         print(f"Epoch {epoch+1}/{epochs}")
@@ -331,6 +339,9 @@ def train_model(
         # Training phase
         model.train()
         running_loss = 0.0
+        running_d_loss = 0.0
+        running_r_loss = 0.0
+        
         correct = 0
         total = 0
         best_acc = 0.0
@@ -343,14 +354,18 @@ def train_model(
 
             global_idx = epoch * len(train_loader) + idx
             
-            # Forward pass
-            # fix tensor.clone() to tensor.detach().clone() to avoid messy gradients
-            inputs_o, labels_o = inputs.detach().clone(), labels.detach().clone()
-            inputs_r, labels_r = apply_rotation(inputs_o, labels_o)
-            inputs_tr, labels_tr = apply_translation(inputs_r, labels_r)
+            if "P4" not in model.__class__.__name__:
+                # Forward pass
+                # fix tensor.clone() to tensor.detach().clone() to avoid messy gradients
+                # add random rotation & translation op to inputs & labels for equivariance check
+                inputs_o, labels_o = inputs.detach().clone(), labels.detach().clone()
+                (inputs_r, labels_r), ang = apply_rotation((inputs_o, labels_o))
+                (inputs_tr, labels_tr), t = apply_translation((inputs_r, labels_r))
+                # Concatenate original, translated, and rotated inputs and labels
+                x, y = torch.cat([inputs_o, inputs_tr], dim=0), torch.cat([labels_o, labels_tr], dim=0)
+            else:
+                x, y = inputs, labels
             
-            # Concatenate original, translated, and rotated inputs and labels
-            x, y = torch.cat([inputs_o, inputs_tr], dim=0), torch.cat([labels_o, labels_tr], dim=0)
             inputs: Float[Array, "batch 2 w h"] = x.to(device)
             labels: Float[Array, "batch 1 w h"] = y.to(device)
             
@@ -366,9 +381,27 @@ def train_model(
             # Dynamics Loss
             output_class_num = ([(dead_r:=(labels == 0).sum()), labels.numel() - dead_r])
             d_loss = cross_entropy(outputs_logits, one_hot_target(labels.to(device)), weight=labels.numel() \
-                / torch.tensor(output_class_num, dtype=torch.float32).to(device)) + 1e-5 * l1_reg
+                / torch.tensor(output_class_num, dtype=torch.float32).to(device), label_smoothing=label_smoothing) + 1e-5 * l1_reg
 
-            d_loss.backward()
+            label_smoothing *= 0.95
+            
+            if "P4" not in model.__class__.__name__:
+                assert ang is not None, f"ang: {ang}"
+                assert t is not None, f"t: {t}"
+                
+                tr_pred = outputs[inputs_o.shape[0]:]
+                orig_pred = outputs[:inputs_o.shape[0]]
+                pred_r = apply_rotation((orig_pred,), ang)[0]
+                pred_tr = apply_translation(pred_r, t)[0][0]
+                
+                # print(outputs.shape, tr_pred.shape, pred_tr.shape)
+                
+                r_loss = nn.functional.l1_loss(tr_pred, pred_tr, size_average=True)
+                loss = d_loss + 0.05 * r_loss
+            else:
+                loss = d_loss
+            
+            loss.backward()
             
             # apply gradient clipping
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -377,7 +410,12 @@ def train_model(
             if use_lr_scheduler:
                 scheduler.step()
                 
-            running_loss += d_loss.item()
+            running_loss += loss.item()
+            running_d_loss += d_loss.item()
+            
+            if "P4" not in model.__class__.__name__:
+                running_r_loss += r_loss.item()
+            
             predicted: Float[Array, "batch 1 w h"] = (outputs.argmax(dim=1)).long()
             total += labels.numel()
             
@@ -385,13 +423,16 @@ def train_model(
             
             correct += (item_correct:=predicted.eq(labels.to(device)).sum().item())
             
-            wandb.log({"total_loss": d_loss.item(),
-                       "gradient_norm": norm.item(),
-                       "item_acc": (item_acc:=(item_correct / labels.numel() * 100))
-                       })
-            scalar_dict["train_loss"].append(d_loss.item())
+            wandb.log({"total_loss": loss.item(),
+                    "gradient_norm": norm.item(),
+                    "item_acc": (item_acc:=(item_correct / labels.numel() * 100))
+                    })
+            scalar_dict["train_loss"].append(loss.item())
             scalar_dict["train_acc"].append(item_acc)
             scalar_dict["grad_norm"].append(norm.item())
+            if "P4" not in model.__class__.__name__:
+                wandb.log({"equivariant_loss": r_loss.item(),})
+                scalar_dict["equivariant_loss"].append(r_loss.item())
             
             if (idx+1) % 100 == 0:
                 # 将 image_grid 异步存储为 matplotlib 图像
@@ -452,8 +493,9 @@ def train_model(
             
             if (idx+1) % 50 == 0:
                 print(f"| {datetime.datetime.now()} | Idx: {idx+1:>4d}/{len(train_loader):<6d} "
-                      f"| loss: {running_loss/(idx+1):.3f} "
-                      f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
+                      + f"| total loss: {running_loss/(idx+1):.3f} " 
+                      + (f"| d_loss: {running_d_loss/(idx+1):.3f} | r_loss: {running_r_loss/(idx+1):.3f} " if "P4" not in model.__class__.__name__ else "")
+                      + f"| grad_norm: {norm:.3f} | acc: {item_acc:.2f}% |", flush=True)
 
         if flag == True:
             torch.save(model.state_dict(), f"./result/predictor_life_simple/{save_base_str}/"
@@ -539,10 +581,11 @@ if __name__ == "__main__":
     # reads the command line arguments
     in_profile = argparse.ArgumentParser(description="Train the Predictor Life model")
     
-    in_profile.add_argument("-p", "--hyperparameters", type=str, default=".\predictor_life_simple\hyperparams\small_4_layer_seq_cnn.toml", help="Path to hyperparameters file")
+    in_profile.add_argument("-p", "--hyperparameters", type=str, default=".\predictor_life_simple\hyperparams\small_3_layer_seq_cnn.toml", help="Path to hyperparameters file")
     in_profile.add_argument("-r", "--sysRule", dest="data_rule", type=str, default="B3678/S34678", help="Life rules")
     in_profile.add_argument("-i", "--dataIter", dest="data_iters", type=int, default=200, help="Iterations within each data file")
     in_profile.add_argument("-w", "--sysSize", dest="sys_size", type=int, default=200, help="System size")
+    in_profile.add_argument("-b", "--batchSize", dest="batch_size", type=int, default=128, help="Batch size")
     
     in_profile_args = in_profile.parse_args()
 
