@@ -79,11 +79,11 @@ def save_image(inputs, labels, outputs,
     
     ax3.axis("off")
     ax3.imshow(xp_t0, cmap='gray')
-    ax3.set_title("$\hat{x}_{t+2} = f(x_{t+1})$\nPredicted State at time t+2")
+    ax3.set_title("$\hat{x}_{t+1} = f(x_{t})$\nPredicted State at time t+1")
 
     ax2.axis("off")
     ax2.imshow(y_t1, cmap='gray')
-    ax2.set_title("$x_{t+2}$\nTrue System State at time t+2")
+    ax2.set_title("$x_{t+1}$\nTrue System State at time t+1")
     
     ax4.axis("off")
     ax4.imshow(y_t1 - xp_t0, cmap="RdBu", vmin=-1, vmax=1)
